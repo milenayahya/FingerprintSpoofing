@@ -31,6 +31,17 @@ if __name__== '__main__':
     plt.title('Attribute 2')
     plt.show()
 
+    ## scatter attr1 and attr2
+
+    plt.figure()
+    plt.scatter(attr1_true, attr2_true, color='red', label= 'Genuine Fingerprint')
+    plt.scatter(attr1_false, attr2_false, color='green', label= 'Fake Fingerprint')
+    plt.xlabel('Attribute 1')
+    plt.ylabel('Attribute 2')
+    plt.legend()
+    plt.show()
+
+
     ## attribute 3
 
     attr3 = features[2,:]
@@ -55,6 +66,17 @@ if __name__== '__main__':
     plt.title('Attribute 4')
     plt.show()
 
+    ## scatter attr3 and attr4
+
+    plt.figure()
+    plt.scatter(attr3_true, attr3_true, color='red', label= 'Genuine Fingerprint')
+    plt.scatter(attr4_false, attr4_false, color='green', label= 'Fake Fingerprint')
+    plt.xlabel('Attribute 3')
+    plt.ylabel('Attribute 4')
+    plt.legend()
+    plt.show()
+
+
     ## attribute 5
 
     attr5 = features[4,:]
@@ -77,6 +99,16 @@ if __name__== '__main__':
     plt.hist(attr6_false, bins=7, alpha=0.5, label= 'Fake Fingerprint', color='green', density= True)
     plt.legend()
     plt.title('Attribute 6')
+    plt.show()
+
+    ## scatter attr5 and attr6
+
+    plt.figure()
+    plt.scatter(attr5_true, attr5_true, color='red', label= 'Genuine Fingerprint')
+    plt.scatter(attr6_false, attr6_false, color='green', label= 'Fake Fingerprint')
+    plt.xlabel('Attribute 5')
+    plt.ylabel('Attribute 6')
+    plt.legend()
     plt.show()
 
     ### Analysing attributes: Scatter Plots
