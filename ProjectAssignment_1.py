@@ -35,7 +35,6 @@ def load(filename):
     return feature_matrix.astype(float), label_array.astype(float)
 
 def PCA_projection(m, features_matrix):
-    print("Shape of features_matrix:", features_matrix.shape)  # Debugging
     mu = features_matrix.mean(1).reshape(features_matrix.shape[0],1)
     features_centered  = features_matrix - mu
     cov = 1/(features_matrix.shape[1]) * (features_centered @ features_centered.T)
@@ -46,14 +45,14 @@ def PCA_projection(m, features_matrix):
     ## we reverse the order:
     vecs_decreasing = vecs[:,::-1]
     P = vecs_decreasing[:,0:m]
-    print(P)
     features_projected = numpy.dot(P.T,features_matrix)
-    return features_projected
+    return features_projected, P
 
 def Sw(features_matrix,labels):
     N = features_matrix.shape[1]
     Sw=0
-    for label in labels:
+    classes = set(labels)
+    for label in classes:
         features = features_matrix[:,labels.flatten()==label]
         mu_c = features.mean(1).reshape(features.shape[0],1)
         nc = features.shape[1]  ##nb of samples of this class
@@ -67,7 +66,8 @@ def Sw(features_matrix,labels):
 def Sb(features_matrix,labels, mu_dataset):
     N = features_matrix.shape[1]
     Sb = 0
-    for label in labels:
+    classes = set(labels)
+    for label in classes:
         features_class = features_matrix[:, labels.flatten()==label]
         nc = features_class.shape[1]
         mu_c = features_class.mean(1).reshape(features_class.shape[0],1)
@@ -75,6 +75,93 @@ def Sb(features_matrix,labels, mu_dataset):
     
     Sb *= 1/N
     return Sb
+
+def computeStats(features_classT, featuresClassF):
+    #statistics
+    mu_classT = features_classT.mean(1).reshape(features_classT.shape[0],1)
+    print("mean true class: ", mu_classT)
+
+    mu_classF = features_classF.mean(1).reshape(features_classF.shape[0],1)
+    print("mean false class: ", mu_classF)
+
+    var_classT = features_classT.var(1)
+    var_classF = features_classF.var(1)
+
+    std_classT = features_classT.std(1)
+    std_classF = features_classF.std(1)
+
+    print("variance true class: ", var_classT)
+    print("variance false class: ", var_classF)
+
+    print("std deviation true class: ", std_classT)
+    print("std deviation false class: ",std_classF)
+
+def LDA_projection(features, labels):
+    mu_dataset = features.mean(1).reshape(features.shape[0],1)
+    S_B = Sb(features,labels,mu_dataset)
+    S_W = Sw(features,labels)
+
+    s, U = scipy.linalg.eigh(S_B,S_W)
+    W = U[:,::-1][:,0:1]  ## setting m to 1, 1-dimensional
+
+
+    LDAdata = numpy.dot(W.T, features)
+    mean_true = LDAdata[0,labels==1].mean()
+    mean_false = LDAdata[0,labels==0].mean()
+
+    if(mean_true<mean_false):
+        W=-W
+
+    return LDAdata, W    
+
+def LDA_Classifier(features,labels,pca_preprocessing,mPCA,plot):
+    ## LDA as a classifier
+    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
+
+    if pca_preprocessing:
+        DTR, P = PCA_projection(mPCA,DTR)
+        DVAL = numpy.dot(P.T,DVAL)
+
+    ## training LDA
+    LDA_TR, W = LDA_projection(DTR,LTR)
+    LDA_VAL = numpy.dot(W.T, DVAL)
+
+    if plot:
+        train_true = LDA_TR[:,LTR.flatten()==1]
+        train_false = LDA_TR[:,LTR.flatten()==0]
+        val_true = LDA_VAL[:,LVAL.flatten()==1]
+        val_false = LDA_VAL[:,LVAL.flatten()==0]
+
+        plt.figure
+        plt.hist(train_true[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
+        plt.hist(train_false[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
+        plt.title("LDA Projection on Training Set")
+        plt.legend()
+        plt.show()
+
+        plt.figure
+        plt.hist(val_true[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
+        plt.hist(val_false[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
+        plt.title("LDA Projection on Validation Set")
+        plt.legend()
+        plt.show()
+
+
+    mean_true = LDA_TR[0,LTR==1].mean()
+    mean_false = LDA_TR[0,LTR==0].mean()
+
+    threshold = (mean_false+mean_true)/2
+    PVAL = numpy.zeros(shape=LVAL.shape, dtype=numpy.int32)
+    PVAL[LDA_VAL[0]>=threshold] = 1
+    PVAL[LDA_VAL[0]<threshold] = 0
+
+    wrong_samples = numpy.sum(LVAL!= PVAL)
+    error = wrong_samples/LVAL.shape
+    accuracy = 1-error
+    correct_samples = LVAL.shape-wrong_samples
+
+    return error, accuracy, correct_samples
+
 
 
 if __name__ == '__main__':
@@ -87,105 +174,23 @@ if __name__ == '__main__':
     features_classT = features[:,labels.flatten()==1]
     features_classF = features[:,labels.flatten()==0]
 
-    #statistics
-    mu_classT = features_classT.mean(1).reshape(features_classT.shape[0],1)
-    print(mu_classT)
-
-    mu_classF = features_classF.mean(1).reshape(features_classF.shape[0],1)
-    print(mu_classF)
-
-    var_classT = features_classT.var(1)
-    var_classF = features_classF.var(1)
-
-    std_classT = features_classT.std(1)
-    std_classF = features_classF.std(1)
-
-    print(var_classT)
-    print(var_classF)
-
-    print(std_classT)
-    print(std_classF)
+    computeStats(features_classT,features_classF)
  
-
     # PCA, LDA, & Classification --Assignment 2
 
     ## applying PCA
-    PCAdata = PCA_projection(50,features)
-    true_prints = PCAdata[:, labels.flatten()==0]
-    false_prints = PCAdata[:, labels.flatten()==1]
+    PCAdata,_ = PCA_projection(6,features)
 
     ## applying LDA
-    mu_dataset = features.mean(1).reshape(features.shape[0],1)
-    S_B = Sb(features,labels,mu_dataset)
-    S_W = Sw(features,labels)
-
-    s, U = scipy.linalg.eigh(S_B,S_W)
-    W = U[:,::-1][:,0:1]  ## setting m to 1, 1-dimensional
-
-    LDAdata = numpy.dot(W.T, features)
-    true_prints = LDAdata[:, labels.flatten()==0]
-    false_prints = LDAdata[:, labels.flatten()==1]
-
-    print(true_prints.shape)
-    print(false_prints.shape)
-
-    plt.figure
-    plt.hist(true_prints[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
-    plt.hist(false_prints[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
-    plt.title("LDA projection")
-    plt.legend()
-    plt.show()
+    LDAdata, W_LDA = LDA_projection(features,labels)
 
     ## LDA as a classifier
-    print("Size of Labels: ", labels.shape)
-    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
+    '''
+    error, accuracy, correct_samples = LDA_Classifier(features,labels,False,None,True)
+    print("Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
+    '''
 
-    ## training LDA
-    mu_TRdataset = DTR.mean(1).reshape(DTR.shape[0],1)
-
-    S_B_LDA = Sb(DTR,LTR,mu_TRdataset)
-    S_W_LDA = Sw(DTR,LTR)
-    s1, U1 = scipy.linalg.eigh(S_B_LDA,S_W_LDA) #solving the general eigenvalue problem
-    W_LDA = U1[:,::-1][:,0:1]  ## setting m to 1
-
-    data_LDA_val_proj = numpy.dot(W_LDA.T, DVAL)
-    data_LDA_train_proj = numpy.dot(W_LDA.T, DTR)
-    true_prints = data_LDA_val_proj[:,LVAL.flatten()==0]
-    false_prints = data_LDA_val_proj[:,LVAL.flatten()==1]
-    mean_true = true_prints.mean(1).reshape(true_prints.shape[0],1)
-    mean_false = false_prints.mean(1).reshape(false_prints.shape[0],1)
-    print("true mean, false mean (after projection): ", mean_true, mean_false)
-    
-
-    threshold = (data_LDA_val_proj[:,LVAL==0].mean()+ data_LDA_train_proj[:,LTR==1].mean())/2.0
-
-    plt.figure
-    plt.hist(true_prints[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
-    plt.hist(false_prints[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
-    plt.title("LDA Validation Set")
-    plt.legend()
-    plt.show()
-
-    ## predicting labels
-
-    ## tuning the threshold
-    threshold = threshold*500
-
-    PVAL = numpy.zeros(shape=LVAL.shape, dtype=numpy.int32)
-    PVAL[data_LDA_val_proj[0]>=threshold] = 1
-    PVAL[data_LDA_val_proj[0]<threshold] = 0
-
-
-    counter= numpy.sum(LVAL != PVAL)
-    print("Counter: ", counter)   ## counter = 185
-
-    # reconstruction error
-    print("Threshold: ", threshold)
-    print("DVAL.shape[1]",DVAL.shape[1])
-
-    
-    error = 1/DVAL.shape[1] * (numpy.sum(numpy.square(data_LDA_val_proj-DVAL)))
-    print("Error: ", error)
-
-    # preprocessing PCA then LDA classification
+    # preprocessing with PCA then LDA classification
+    error, accuracy, correct_samples = LDA_Classifier(features,labels,True,6,False)
+    print("Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     

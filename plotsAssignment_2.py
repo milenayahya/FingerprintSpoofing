@@ -3,54 +3,56 @@ import matplotlib.pyplot as plt
 import ProjectAssignment_1 as main
 
 if __name__== '__main__':
+
+    ## PCA plots
     
     features, labels = main.load('trainData.txt')
-    PCAdata = main.PCA_projection(50, features)
-    print(PCAdata)
-
+    PCAdata, _ = main.PCA_projection(6, features)
+    print("Dimensions data: ", PCAdata)
+    print("dimensions labels: ", labels.shape)
     
-    true_prints = PCAdata[:, labels.flatten()==0]
-    false_prints = PCAdata[:, labels.flatten()==1]
+    true_prints = PCAdata[:, labels.flatten()==1]
+    false_prints = PCAdata[:, labels.flatten()==0]
 
     ## histograms
     plt.figure()
-    plt.hist(true_prints[0,:], bins=7, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-    plt.hist(false_prints[0,:], bins=7, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+    plt.hist(true_prints[0,:], bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+    plt.hist(false_prints[0,:], bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
     plt.legend()
     plt.title('Principal Component 1')
     plt.show()
 
     plt.figure()
-    plt.hist(true_prints[1,:], bins=7, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-    plt.hist(false_prints[1,:], bins=7, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+    plt.hist(true_prints[1,:], bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+    plt.hist(false_prints[1,:], bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
     plt.legend()
     plt.title('Principal Component 2')
     plt.show()
 
     plt.figure()
-    plt.hist(true_prints[2,:], bins=7, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-    plt.hist(false_prints[2,:], bins=7, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+    plt.hist(true_prints[2,:], bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+    plt.hist(false_prints[2,:], bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
     plt.legend()
     plt.title('Principal Component 3')
     plt.show()
 
     plt.figure()
-    plt.hist(true_prints[3,:], bins=7, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-    plt.hist(false_prints[3,:], bins=7, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+    plt.hist(true_prints[3,:], bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+    plt.hist(false_prints[3,:], bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
     plt.legend()
     plt.title('Principal Component 4')
     plt.show()
 
     plt.figure()
-    plt.hist(true_prints[4,:], bins=7, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-    plt.hist(false_prints[4,:], bins=7, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+    plt.hist(true_prints[4,:], bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+    plt.hist(false_prints[4,:], bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
     plt.legend()
     plt.title('Principal Component 5')
     plt.show()
 
     plt.figure()
-    plt.hist(true_prints[5,:], bins=7, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-    plt.hist(false_prints[5,:], bins=7, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+    plt.hist(true_prints[5,:], bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+    plt.hist(false_prints[5,:], bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
     plt.legend()
     plt.title('Principal Component 6')
     plt.show()
@@ -93,4 +95,18 @@ if __name__== '__main__':
     plt.xlabel('Principal Component 5')
     plt.ylabel('Principal Component 6')
     plt.grid(True)
+    plt.show()
+
+
+    ## LDA plots
+    labels= labels.flatten()
+    LDAdata, W_LDA = main.LDA_projection(features,labels)
+    true_prints = LDAdata[:, labels.flatten()==1]
+    false_prints = LDAdata[:, labels.flatten()==0]
+
+    plt.figure
+    plt.hist(true_prints[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
+    plt.hist(false_prints[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
+    plt.title("LDA projection")
+    plt.legend()
     plt.show()
