@@ -13,7 +13,6 @@ def vcol(vector):
 def vrow(vector):
     return vector.reshape(1,-1)
 
-
 def split_db_2to1(D, L, seed=0): 
     nTrain = int(D.shape[1]*2.0/3.0) 
     numpy.random.seed(seed) 
@@ -122,9 +121,9 @@ def LDA_projection(features, labels):
 
     return LDAdata, W    
 
-def LDA_Classifier(features,labels,pca_preprocessing,mPCA,plot):
+def LDA_Classifier(DTR,LTR,DVAL,LVAL,pca_preprocessing,mPCA,plot):
     ## LDA as a classifier
-    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
+    
 
     if pca_preprocessing:
         DTR, P = PCA_projection(mPCA,DTR)
@@ -201,6 +200,79 @@ def loglikelihood(XND, m_ML, C_ML):
     l=sum(NDD)
     return l
 
+def MVG(DTR, LTR, DVAL, prior):
+    DF= DTR[:, LTR.flatten()==0]
+    DT= DTR[:, LTR.flatten()==1]
+
+    mF, cF = ML(DF)
+    mT, cT = ML(DT)
+
+    likelihoodF = numpy.exp(logpdf_GAU_ND(DVAL,mF,cF)).reshape(1,DVAL.shape[1])
+    likelihoodT = numpy.exp(logpdf_GAU_ND(DVAL,mT,cT)).reshape(1,DVAL.shape[1])
+    S= numpy.vstack((likelihoodF,likelihoodT))
+    SJoint= prior*S
+    SMarginal = vrow(SJoint.sum(0))
+    SPost = SJoint/SMarginal
+
+    return SPost, likelihoodF, likelihoodT
+
+def evaluate_model(SPost, LTE, predicted_labels=None, llr=False):
+
+    if llr==False:
+        predicted_labels = numpy.argmax(SPost,axis=0)
+
+    #else we have the predicted_labels from llr
+    accuracy = numpy.sum(predicted_labels==LTE)/LTE.shape[0]
+    error= 1- accuracy
+    
+    return accuracy,error
+
+def NaiveBayes(DTR,LTR,DVAL,prior):
+
+    DF= DTR[:, LTR.flatten()==0]
+    DT= DTR[:, LTR.flatten()==1]
+
+    mF, cF = ML(DF)
+    mT, cT = ML(DT)
+
+    n= cF.shape[0]
+    I = numpy.eye(n)
+    cFNB = numpy.multiply(cF,I)
+    cTNB = numpy.multiply(cT,I)
+
+    likelihoodF = numpy.exp(logpdf_GAU_ND(DVAL,mF,cFNB)).reshape(1,DVAL.shape[1])
+    likelihoodT = numpy.exp(logpdf_GAU_ND(DVAL,mT,cTNB)).reshape(1,DVAL.shape[1])
+
+    S= numpy.vstack((likelihoodF,likelihoodT))
+    SJoint= prior*S
+    SMarginal = vrow(SJoint.sum(0))
+    SPost = SJoint/SMarginal
+
+    return SPost, likelihoodF, likelihoodT
+
+def TiedCov(DTR,LTR,DVAL,prior):
+    SW = Sw(DTR,LTR)
+    
+    DF= DTR[:, LTR.flatten()==0]
+    DT= DTR[:, LTR.flatten()==1]
+
+    mF, _ = ML(DF)
+    mT, _ = ML(DT)
+    likelihoodF = numpy.exp(logpdf_GAU_ND(DVAL,mF,SW)).reshape(1,DVAL.shape[1])
+    likelihoodT = numpy.exp(logpdf_GAU_ND(DVAL,mT,SW)).reshape(1,DVAL.shape[1])
+
+    S= numpy.vstack((likelihoodF,likelihoodT))
+    SJoint= prior*S
+    SMarginal = vrow(SJoint.sum(0))
+    SPost = SJoint/SMarginal
+
+    return SPost, likelihoodF, likelihoodT
+
+def llr(likelihoodF, likelihoodT, threshold):
+    score = numpy.log(likelihoodT) - numpy.log(likelihoodF)
+    predicted_labels =numpy.where(score>=threshold, 1, 0)
+
+    return predicted_labels
 
 if __name__ == '__main__':
 
@@ -223,24 +295,25 @@ if __name__ == '__main__':
     LDAdata, W_LDA = LDA_projection(features,labels)
 
     ## LDA as a classifier
-    
-    error, accuracy, correct_samples = LDA_Classifier(features,labels,False,None,True)
-    print("Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
+
+    ##the split to be ised throughout ENTIRE project
+    (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
+
+    error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
+    print("LDA: Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
 
     # preprocessing with PCA then LDA classification
-    error, accuracy, correct_samples = LDA_Classifier(features,labels,True,6,False)
-    print("Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
+    error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,True,6,False)
+    print("LDA + PCA : Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
     # Gaussian Models --Assignment 3
-   
+    '''
     for i in range(features.shape[0]):
         
         featuresT = features[i,labels.flatten()==1].reshape(1,sum(labels.flatten()==1))
-        print(featuresT.shape)
-        
         featuresF = features[i,labels.flatten()==0].reshape(1,sum(labels.flatten()==0))
-        print(featuresF.shape)
+       
         meanT,covT = ML(featuresT)
         meanF,covF = ML(featuresF)
 
@@ -257,3 +330,128 @@ if __name__ == '__main__':
         plt.legend()
         plt.title('Feature %d' % (i+1))
         plt.show()
+    '''
+
+    ## Assignment 4
+
+    ## MVG
+
+    SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR,LTR,DVAL, 0.5)
+    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
+
+    ## Tied Covariance
+    SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR,LTR,DVAL,0.5)
+    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
+
+    ## Naive Bayes
+    SPost, likelihoodF_NB, likelihoodT_NB = NaiveBayes(DTR,LTR,DVAL,0.5)
+    predicts_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
+    accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
+
+
+    print("MVG: Accuracy, Error: ", accuracyMVG,errorMVG)
+    print("TC: Accuracy, Error: ", accuracyTC,errorTC)
+    print("NB: Accuracy, Error: ", accuracyNB,errorNB)
+
+    #### ANALYSIS
+    '''
+    DF= DTR[:, LTR.flatten()==0]
+    DT= DTR[:, LTR.flatten()==1]
+    mF, cF = ML(DF)
+    mT, cT = ML(DT)
+    print("Covariance matrix of True class: ", cT)
+    print("Covariance matrix of False class: ", cF)
+
+    CorrT =  cT/ ( vcol(cT.diagonal()**0.5) * vrow(cT.diagonal()**0.5) )
+    CorrF =  cF/ ( vcol(cF.diagonal()**0.5) * vrow(cF.diagonal()**0.5) )
+
+    print("Correlation matrix of True class: ", CorrT)
+    print("Correlation matrix of False class: ", CorrF)
+    '''
+
+    ## Discarding the last two features, as they do not satisfy the assumption 
+    ## that features can be jointly modeled by Gaussian distributions. 
+
+    ## MVG
+
+    DTR_4_features = DTR[:4,:]
+    DVAL_4_features = DVAL[:4,:]
+    
+    SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_4_features,LTR,DVAL_4_features, 0.5)
+    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
+
+    ## Tied Covariance
+    SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_4_features,LTR,DVAL_4_features,0.5)
+    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
+
+    ## Naive Bayes
+    SPost, likelihoodF_NB, likelihoodT_NB = NaiveBayes(DTR_4_features,LTR,DVAL_4_features,0.5)
+    predicts_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
+    accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
+
+
+    print("MVG 4 features: Accuracy, Error: ", accuracyMVG,errorMVG)
+    print("TC 4 features: Accuracy, Error: ", accuracyTC,errorTC)
+    print("NB 4 features: Accuracy, Error: ", accuracyNB,errorNB)
+
+    ## Features 1 and 2
+    DTR_12_features = DTR[:3,:]
+    DVAL_12_features = DVAL[:3,:]
+    
+    SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_12_features,LTR,DVAL_12_features, 0.5)
+    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
+
+    ## Tied Covariance
+    SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_12_features,LTR,DVAL_12_features,0.5)
+    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
+
+    print("MVG features 1 and 2: Accuracy, Error: ", accuracyMVG,errorMVG)
+    print("TC features 1 and 2: Accuracy, Error: ", accuracyTC,errorTC)
+
+    ## Features 3 and 4
+    DTR_34_features = DTR[2:5,:]
+    DVAL_34_features = DVAL[2:5,:]
+    
+    SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_34_features,LTR,DVAL_34_features, 0.5)
+    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
+
+    ## Tied Covariance
+    SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_34_features,LTR,DVAL_34_features,0.5)
+    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
+
+    print("MVG features 3 and 4: Accuracy, Error: ", accuracyMVG,errorMVG)
+    print("TC features 3 and 4: Accuracy, Error: ", accuracyTC,errorTC)
+
+    ## Applying PCA
+    m=2
+    DTR_PCA,_ = PCA_projection(m, DTR)
+    DVAL_PCA= DVAL[:m,:]
+
+    ## MVG
+
+    SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_PCA,LTR,DVAL_PCA, 0.5)
+    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
+
+    ## Tied Covariance
+    SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_PCA,LTR,DVAL_PCA,0.5)
+    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
+
+    ## Naive Bayes
+    SPost, likelihoodF_NB, likelihoodT_NB = NaiveBayes(DTR_PCA,LTR,DVAL_PCA,0.5)
+    predicts_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
+    accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
+
+
+    print("MVG+PCA: Accuracy, Error: ", accuracyMVG,errorMVG)
+    print("TC+PCA: Accuracy, Error: ", accuracyTC,errorTC)
+    print("NB+PCA: Accuracy, Error: ", accuracyNB,errorNB)
