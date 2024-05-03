@@ -162,6 +162,36 @@ def LDA_Classifier(features,labels,pca_preprocessing,mPCA,plot):
 
     return error, accuracy, correct_samples
 
+def logpdf_GAU_ND(X,mu,C):
+
+    M = X.shape[0]
+    N= X.shape[1]
+    ND = []
+    for i in range(N):
+        x = X[:,i].reshape(X.shape[0],1)
+        _, log_detC = numpy.linalg.slogdet(C)
+
+        term1= -M/2*numpy.log(2*numpy.pi)
+        term2 = -1/2*log_detC
+        term3 = -1/2*(x-mu).T@numpy.linalg.inv(C)@(x-mu)
+        result = term1+term2+term3
+        ND.append(result)
+    
+    #flatten the list: list of arrays -> list of numbers
+    NDD = [n[0][0] for n in ND]
+    return NDD
+
+def ML(X):
+    mean = X.mean(1).reshape(X.shape[0],1)
+    X_centered = X-mean
+    cov = 1/(X.shape[1])*(X_centered@ X_centered.T)
+    return mean, cov
+
+def loglikelihood(XND, m_ML, C_ML):
+    
+    NDD= logpdf_GAU_ND(XND,m_ML,C_ML)
+    l=sum(NDD)
+    return l
 
 
 if __name__ == '__main__':
@@ -185,12 +215,36 @@ if __name__ == '__main__':
     LDAdata, W_LDA = LDA_projection(features,labels)
 
     ## LDA as a classifier
-    '''
+    
     error, accuracy, correct_samples = LDA_Classifier(features,labels,False,None,True)
     print("Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
-    '''
+    
 
     # preprocessing with PCA then LDA classification
     error, accuracy, correct_samples = LDA_Classifier(features,labels,True,6,False)
     print("Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
+    # Gaussian Models --Assignment 3
+   
+    for i in range(features.shape[0]):
+        
+        featuresT = features[i,labels.flatten()==1].reshape(1,sum(labels.flatten()==1))
+        featuresF = features[i,labels.flatten()==0].reshape(1,sum(labels.flatten()==0))
+        meanT,covT = ML(featuresT)
+        meanF,covF = ML(featuresF)
+        logNxT = logpdf_GAU_ND(featuresT,meanT,covT)
+        logNxF = logpdf_GAU_ND(featuresF,meanF,covF)
+
+        attr = features[i,:]
+        attr_true = attr[labels.flatten()==1]
+        attr_false= attr[labels.flatten()==0]
+        plt.figure()
+        plt.hist(attr_true, bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+        plt.hist(attr_false, bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+        XPlot1 = numpy.linspace(-4, 4, featuresT.shape[1]).reshape(1, featuresT.shape[1])
+        XPlot2 = numpy.linspace(-4, 4, featuresF.shape[1]).reshape(1, featuresF.shape[1])
+        plt.plot(XPlot1.ravel(), numpy.exp(logpdf_GAU_ND(XPlot1,meanT,covT)), color='green')
+        plt.plot(XPlot2.ravel(), numpy.exp(logpdf_GAU_ND(XPlot2,meanF,covF)), color='red')
+        plt.legend()
+        plt.title('Feature %d' % (i+1))
+        plt.show()
