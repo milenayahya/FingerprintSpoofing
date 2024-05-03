@@ -6,6 +6,14 @@ import sklearn
 features = numpy.array([])
 labels = numpy.array([])
 
+
+def vcol(vector):
+    return vector.reshape(-1,1)
+
+def vrow(vector):
+    return vector.reshape(1,-1)
+
+
 def split_db_2to1(D, L, seed=0): 
     nTrain = int(D.shape[1]*2.0/3.0) 
     numpy.random.seed(seed) 
@@ -229,18 +237,19 @@ if __name__ == '__main__':
     for i in range(features.shape[0]):
         
         featuresT = features[i,labels.flatten()==1].reshape(1,sum(labels.flatten()==1))
+        print(featuresT.shape)
+        
         featuresF = features[i,labels.flatten()==0].reshape(1,sum(labels.flatten()==0))
+        print(featuresF.shape)
         meanT,covT = ML(featuresT)
         meanF,covF = ML(featuresF)
+
         logNxT = logpdf_GAU_ND(featuresT,meanT,covT)
         logNxF = logpdf_GAU_ND(featuresF,meanF,covF)
 
-        attr = features[i,:]
-        attr_true = attr[labels.flatten()==1]
-        attr_false= attr[labels.flatten()==0]
         plt.figure()
-        plt.hist(attr_true, bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-        plt.hist(attr_false, bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+        plt.hist(featuresT.reshape(sum(labels.flatten()==1)), bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
+        plt.hist(featuresF.reshape(sum(labels.flatten()==0)), bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
         XPlot1 = numpy.linspace(-4, 4, featuresT.shape[1]).reshape(1, featuresT.shape[1])
         XPlot2 = numpy.linspace(-4, 4, featuresF.shape[1]).reshape(1, featuresF.shape[1])
         plt.plot(XPlot1.ravel(), numpy.exp(logpdf_GAU_ND(XPlot1,meanT,covT)), color='green')
