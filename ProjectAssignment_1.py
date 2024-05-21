@@ -124,7 +124,6 @@ def LDA_projection(features, labels):
 def LDA_Classifier(DTR,LTR,DVAL,LVAL,pca_preprocessing,mPCA,plot):
     ## LDA as a classifier
     
-
     if pca_preprocessing:
         DTR, P = PCA_projection(mPCA,DTR)
         DVAL = numpy.dot(P.T,DVAL)
@@ -271,8 +270,125 @@ def TiedCov(DTR,LTR,DVAL,prior):
 def llr(likelihoodF, likelihoodT, threshold):
     score = numpy.log(likelihoodT) - numpy.log(likelihoodF)
     predicted_labels =numpy.where(score>=threshold, 1, 0)
+    return predicted_labels, score
 
-    return predicted_labels
+def effective_prior(pi,Cfn,Cfp):
+    pi_tilde = (pi*Cfn)/((pi*Cfn)*((1-pi)*Cfp))
+    return pi_tilde
+
+def Bayes_Decision(llr,pi, Cfn, Cfp):
+    t = -numpy.log((pi*Cfn)/((1-pi)*Cfp))
+    c= numpy.where(llr<=t,0,1)
+    return c
+
+def min_cost(llr,thresholds,labels,pi,Cfn,Cfp):
+    res =numpy.array(len(thresholds))
+    Pfn =numpy.array(len(thresholds))
+    Pfp =numpy.array(len(thresholds))
+    for t in thresholds:
+        c= numpy.where(llr<=t,0,1)
+        conf_mat = compute_conf_matrix(c,labels)
+        dcf, dcf_norm, pfn,pfp = binary_dcf(c,labels,pi,Cfn,Cfp)
+        if res is None:
+            res=dcf_norm
+            Pfn=pfn
+            Pfp= pfp
+         
+        else:
+            res = numpy.append(res,dcf_norm)
+            Pfn = numpy.append(Pfn,pfn)
+            Pfp = numpy.append(Pfp,pfp)
+           
+    minDCF = min(res)
+
+    return minDCF,Pfn,Pfp
+
+def compute_conf_matrix(predictions,labels):
+    i=0
+    nb_classes = len(numpy.unique(labels))
+    conf_matrix= numpy.zeros((nb_classes,nb_classes))
+    for value in numpy.unique(labels):
+        prediction_per_class= predictions[labels==value]
+        prediction = numpy.zeros((1,nb_classes))
+        for class_k in range(nb_classes):
+            prediction[0,class_k] = numpy.sum(prediction_per_class==class_k)
+        conf_matrix[:,i] = vcol(prediction)[:,0]
+        i+=1
+    return conf_matrix
+
+def binary_dcf(predictions, labels, pi,Cfn,Cfp):
+    conf_matrix= compute_conf_matrix(predictions,labels)
+    Pfp = conf_matrix[1,0]/(conf_matrix[1,0]+conf_matrix[0,0])
+    Pfn = conf_matrix[0,1]/(conf_matrix[0,1]+conf_matrix[1,1])
+    dcf = pi*Cfn*Pfn + ((1-pi)*Cfp*Pfp)
+    B_dummy = min(pi*Cfn, (1-pi)*Cfp)
+    dcf_norm = dcf/B_dummy
+    return dcf,dcf_norm,Pfn,Pfp
+
+def bayes_error_plot(effPriorLogOdds, llr_MVG, llr_TC, llr_NB, labels):
+    DCF_MVG= numpy.array([])
+    DCF_MIN_MVG= numpy.array([])
+
+    DCF_TC= numpy.array([])
+    DCF_MIN_TC= numpy.array([])
+
+    DCF_NB= numpy.array([])
+    DCF_MIN_NB= numpy.array([])
+
+    for p in effPriorLogOdds:
+        pi_tilde = 1/ (1 +numpy.exp(-p))
+        #compute min_dcf
+        thresholds_MVG = numpy.sort(llr_MVG)
+        minDCF_MVG,Pfn,Pfp= min_cost(vcol(llr_MVG),vcol(thresholds_MVG),labels,pi_tilde,1,1)
+
+        thresholds_TC = numpy.sort(llr_TC)
+        minDCF_TC,Pfn,Pfp= min_cost(vcol(llr_TC),vcol(thresholds_TC),labels,pi_tilde,1,1)
+
+        thresholds_NB = numpy.sort(llr_NB)
+        minDCF_NB,Pfn,Pfp= min_cost(vcol(llr_NB),vcol(thresholds_NB),labels,pi_tilde,1,1)
+
+        #compute DCF
+        predictions_MVG = Bayes_Decision(llr_MVG,pi_tilde,1,1)
+        dcf, dcf_norm_MVG,_,_ = binary_dcf(vcol(predictions_MVG),labels,pi_tilde,1,1)
+
+        predictions_TC = Bayes_Decision(llr_TC,pi_tilde,1,1)
+        dcf, dcf_norm_TC,_,_ = binary_dcf(vcol(predictions_TC),labels,pi_tilde,1,1)
+
+        predictions_NB = Bayes_Decision(llr_NB,pi_tilde,1,1)
+        dcf, dcf_norm_NB,_,_ = binary_dcf(vcol(predictions_NB),labels,pi_tilde,1,1)
+
+        if DCF_MVG is None:
+            DCF_MVG = dcf_norm_MVG
+            DCF_MIN_MVG = minDCF_MVG
+
+            DCF_TC = dcf_norm_TC
+            DCF_MIN_TC = minDCF_TC
+
+            DCF_NB = dcf_norm_NB
+            DCF_MIN_NB = minDCF_NB
+        else:
+            DCF_MVG = numpy.append(DCF_MVG,dcf_norm_MVG)
+            DCF_MIN_MVG = numpy.append(DCF_MIN_MVG,minDCF_MVG)
+
+            DCF_TC = numpy.append(DCF_TC,dcf_norm_TC)
+            DCF_MIN_TC = numpy.append(DCF_MIN_TC,minDCF_TC)
+           
+            DCF_NB = numpy.append(DCF_NB,dcf_norm_NB)
+            DCF_MIN_NB = numpy.append(DCF_MIN_NB,minDCF_NB)
+    
+    print("size of DCF_MVG, DCF_TC, DCF_BV: ", len(DCF_MVG),len(DCF_TC),len(DCF_NB))
+    plt.figure()
+    plt.plot(effPriorLogOdds, DCF_MVG, label='DCF_MVG', color='#ADD8E6')
+    plt.plot(effPriorLogOdds, DCF_MIN_MVG, label='minDCF_MVG', color='#00008B')
+    plt.plot(effPriorLogOdds, DCF_TC, label='DCF_TC', color='#FFB6C1')
+    plt.plot(effPriorLogOdds, DCF_MIN_TC, label='minDCF_TC', color='#8B0000')
+    plt.plot(effPriorLogOdds, DCF_NB, label='DCF_NB', color='#90EE90')
+    plt.plot(effPriorLogOdds, DCF_MIN_NB, label='minDCF_NB', color='#006400')
+    plt.ylim([0,1.1])
+    plt.xlim([-4,4])
+    plt.legend()
+    plt.show()
+
 
 if __name__ == '__main__':
 
@@ -296,7 +412,7 @@ if __name__ == '__main__':
 
     ## LDA as a classifier
 
-    ##the split to be ised throughout ENTIRE project
+    ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
@@ -337,19 +453,18 @@ if __name__ == '__main__':
     ## MVG
 
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR,LTR,DVAL, 0.5)
-    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    predicts_MVG, llr_scores_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
     accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
 
     ## Tied Covariance
     SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR,LTR,DVAL,0.5)
-    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    predicts_TC, llr_scores_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
     ## Naive Bayes
     SPost, likelihoodF_NB, likelihoodT_NB = NaiveBayes(DTR,LTR,DVAL,0.5)
-    predicts_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
+    predicts_NB, llr_scores_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
-
 
     print("MVG: Accuracy, Error: ", accuracyMVG,errorMVG)
     print("TC: Accuracy, Error: ", accuracyTC,errorTC)
@@ -380,17 +495,17 @@ if __name__ == '__main__':
     DVAL_4_features = DVAL[:4,:]
     
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_4_features,LTR,DVAL_4_features, 0.5)
-    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    predicts_MVG,_ = llr(likelihoodF_MVG, likelihoodT_MVG,0)
     accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
 
     ## Tied Covariance
     SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_4_features,LTR,DVAL_4_features,0.5)
-    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    predicts_TC,_ = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
     ## Naive Bayes
     SPost, likelihoodF_NB, likelihoodT_NB = NaiveBayes(DTR_4_features,LTR,DVAL_4_features,0.5)
-    predicts_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
+    predicts_NB, _ = llr(likelihoodF_NB, likelihoodT_NB,0)
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
 
 
@@ -403,12 +518,12 @@ if __name__ == '__main__':
     DVAL_12_features = DVAL[:3,:]
     
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_12_features,LTR,DVAL_12_features, 0.5)
-    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    predicts_MVG,_ = llr(likelihoodF_MVG, likelihoodT_MVG,0)
     accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
 
     ## Tied Covariance
     SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_12_features,LTR,DVAL_12_features,0.5)
-    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    predicts_TC,_ = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
     print("MVG features 1 and 2: Accuracy, Error: ", accuracyMVG,errorMVG)
@@ -419,39 +534,189 @@ if __name__ == '__main__':
     DVAL_34_features = DVAL[2:5,:]
     
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_34_features,LTR,DVAL_34_features, 0.5)
-    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    predicts_MVG,_ = llr(likelihoodF_MVG, likelihoodT_MVG,0)
     accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
 
     ## Tied Covariance
     SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_34_features,LTR,DVAL_34_features,0.5)
-    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    predicts_TC,_ = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
     print("MVG features 3 and 4: Accuracy, Error: ", accuracyMVG,errorMVG)
     print("TC features 3 and 4: Accuracy, Error: ", accuracyTC,errorTC)
 
     ## Applying PCA
-    m=2
-    DTR_PCA,_ = PCA_projection(m, DTR)
-    DVAL_PCA= DVAL[:m,:]
+    m=5
+    DTR_PCA,P = PCA_projection(m, DTR)
+    DVAL_PCA = numpy.dot(P.T,DVAL)
 
     ## MVG
 
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_PCA,LTR,DVAL_PCA, 0.5)
-    predicts_MVG = llr(likelihoodF_MVG, likelihoodT_MVG,0)
+    predicts_MVG,llr_scores_MVG_PCA = llr(likelihoodF_MVG, likelihoodT_MVG,0)
     accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
 
     ## Tied Covariance
     SPost, likelihoodF_TC, likelihoodT_TC = TiedCov(DTR_PCA,LTR,DVAL_PCA,0.5)
-    predicts_TC = llr(likelihoodF_TC, likelihoodT_TC,0)
+    predicts_TC,llr_scores_TC_PCA = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
     ## Naive Bayes
     SPost, likelihoodF_NB, likelihoodT_NB = NaiveBayes(DTR_PCA,LTR,DVAL_PCA,0.5)
-    predicts_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
+    predicts_NB,llr_scores_NB_PCA = llr(likelihoodF_NB, likelihoodT_NB,0)
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
 
 
     print("MVG+PCA: Accuracy, Error: ", accuracyMVG,errorMVG)
     print("TC+PCA: Accuracy, Error: ", accuracyTC,errorTC)
     print("NB+PCA: Accuracy, Error: ", accuracyNB,errorNB)
+
+
+    ## Assignment 5 - Lab 7
+    pi_tilde1 = effective_prior(0.5,1,9)
+    pi_tilde2 = effective_prior(0.5,9,1)
+    print(pi_tilde1,pi_tilde2)
+    #stronger security (higher false positive cost) corresponds to an equivalent lower prior probability of a legit user
+
+    # now we take our decision by using Bayes Optimal Decision, not by comparing the llr with a threshold 
+    predict_MVG05 = Bayes_Decision(llr_scores_MVG, 0.5,1,1)
+    predict_MVG09 = Bayes_Decision(llr_scores_MVG, 0.9,1,1)
+    predict_MVG01 = Bayes_Decision(llr_scores_MVG, 0.1,1,1)
+
+    predict_TC05 = Bayes_Decision(llr_scores_TC, 0.5,1,1)
+    predict_TC09 = Bayes_Decision(llr_scores_TC, 0.9,1,1)
+    predict_TC01 = Bayes_Decision(llr_scores_TC, 0.1,1,1)
+
+    predict_NB05 = Bayes_Decision(llr_scores_NB, 0.5,1,1)
+    predict_NB09 = Bayes_Decision(llr_scores_NB, 0.9,1,1)
+    predict_NB01 = Bayes_Decision(llr_scores_NB, 0.1,1,1)
+
+    #with PCA:
+    predict_MVG05_PCA = Bayes_Decision(llr_scores_MVG_PCA, 0.5,1,1)
+    predict_MVG09_PCA = Bayes_Decision(llr_scores_MVG_PCA, 0.9,1,1)
+    predict_MVG01_PCA = Bayes_Decision(llr_scores_MVG_PCA, 0.1,1,1)
+
+    predict_TC05_PCA= Bayes_Decision(llr_scores_TC_PCA, 0.5,1,1)
+    predict_TC09_PCA= Bayes_Decision(llr_scores_TC_PCA, 0.9,1,1)
+    predict_TC01_PCA= Bayes_Decision(llr_scores_TC_PCA, 0.1,1,1)
+
+    predict_NB05_PCA= Bayes_Decision(llr_scores_NB_PCA, 0.5,1,1)
+    predict_NB09_PCA= Bayes_Decision(llr_scores_NB_PCA, 0.9,1,1)
+    predict_NB01_PCA= Bayes_Decision(llr_scores_NB_PCA, 0.1,1,1)
+
+    # DCF: normalized DCF returned by function binary_dcf
+    # while minDCF returned by function min_cost
+    
+    _,DCF_MVG05, _, _ = binary_dcf(vcol(predict_MVG05), LVAL, 0.5,1,1)
+    _,DCF_MVG09, _, _ = binary_dcf(vcol(predict_MVG09), LVAL, 0.9,1,1)
+    _,DCF_MVG01, _, _ = binary_dcf(vcol(predict_MVG01), LVAL, 0.1,1,1)
+
+    _,DCF_TC05, _, _ = binary_dcf(vcol(predict_TC05), LVAL, 0.5,1,1)
+    _,DCF_TC09, _, _ = binary_dcf(vcol(predict_TC09), LVAL, 0.9,1,1)
+    _,DCF_TC01, _, _ = binary_dcf(vcol(predict_TC01), LVAL, 0.1,1,1)
+
+    _,DCF_NB05, _, _ = binary_dcf(vcol(predict_NB05), LVAL, 0.5,1,1)
+    _,DCF_NB09, _, _ = binary_dcf(vcol(predict_NB09), LVAL, 0.9,1,1)
+    _,DCF_NB01, _, _ = binary_dcf(vcol(predict_NB01), LVAL, 0.1,1,1)
+
+    minDCF_MVG05,_,_ = min_cost(vcol(llr_scores_MVG),vcol(numpy.sort(llr_scores_MVG)),LVAL, 0.5,1,1)
+    minDCF_MVG09,_,_ = min_cost(vcol(llr_scores_MVG),vcol(numpy.sort(llr_scores_MVG)),LVAL, 0.9,1,1)
+    minDCF_MVG01,_,_ = min_cost(vcol(llr_scores_MVG),vcol(numpy.sort(llr_scores_MVG)),LVAL, 0.1,1,1)
+
+    minDCF_TC05,_,_ = min_cost(vcol(llr_scores_TC),vcol(numpy.sort(llr_scores_TC)),LVAL, 0.5,1,1)
+    minDCF_TC09,_,_ = min_cost(vcol(llr_scores_TC),vcol(numpy.sort(llr_scores_TC)),LVAL, 0.9,1,1)
+    minDCF_TC01,_,_ = min_cost(vcol(llr_scores_TC),vcol(numpy.sort(llr_scores_TC)),LVAL, 0.1,1,1)
+
+    minDCF_NB05,_,_ = min_cost(vcol(llr_scores_NB),vcol(numpy.sort(llr_scores_NB)),LVAL, 0.5,1,1)
+    minDCF_NB09,_,_ = min_cost(vcol(llr_scores_NB),vcol(numpy.sort(llr_scores_NB)),LVAL, 0.9,1,1)
+    minDCF_NB01,_,_ = min_cost(vcol(llr_scores_NB),vcol(numpy.sort(llr_scores_NB)),LVAL, 0.1,1,1)
+
+    _,DCF_MVG05_PCA, _, _ = binary_dcf(vcol(predict_MVG05_PCA), LVAL, 0.5,1,1)
+    _,DCF_MVG09_PCA, _, _ = binary_dcf(vcol(predict_MVG09_PCA), LVAL, 0.9,1,1)
+    _,DCF_MVG01_PCA, _, _ = binary_dcf(vcol(predict_MVG01_PCA), LVAL, 0.1,1,1)
+
+    _,DCF_TC05_PCA, _, _ = binary_dcf(vcol(predict_TC05_PCA), LVAL, 0.5,1,1)
+    _,DCF_TC09_PCA, _, _ = binary_dcf(vcol(predict_TC09_PCA), LVAL, 0.9,1,1)
+    _,DCF_TC01_PCA, _, _ = binary_dcf(vcol(predict_TC01_PCA), LVAL, 0.1,1,1)
+
+    _,DCF_NB05_PCA, _, _ = binary_dcf(vcol(predict_NB05_PCA), LVAL, 0.5,1,1)
+    _,DCF_NB09_PCA, _, _ = binary_dcf(vcol(predict_NB09_PCA), LVAL, 0.9,1,1)
+    _,DCF_NB01_PCA, _, _ = binary_dcf(vcol(predict_NB01_PCA), LVAL, 0.1,1,1)
+
+    minDCF_MVG05_PCA,_,_ = min_cost(vcol(llr_scores_MVG_PCA),vcol(numpy.sort(llr_scores_MVG_PCA)),LVAL, 0.5,1,1)
+    minDCF_MVG09_PCA,_,_ = min_cost(vcol(llr_scores_MVG_PCA),vcol(numpy.sort(llr_scores_MVG_PCA)),LVAL, 0.9,1,1)
+    minDCF_MVG01_PCA,_,_ = min_cost(vcol(llr_scores_MVG_PCA),vcol(numpy.sort(llr_scores_MVG_PCA)),LVAL, 0.1,1,1)
+
+    minDCF_TC05_PCA,_,_ = min_cost(vcol(llr_scores_TC_PCA),vcol(numpy.sort(llr_scores_TC_PCA)),LVAL, 0.5,1,1)
+    minDCF_TC09_PCA,_,_ = min_cost(vcol(llr_scores_TC_PCA),vcol(numpy.sort(llr_scores_TC_PCA)),LVAL, 0.9,1,1)
+    minDCF_TC01_PCA,_,_ = min_cost(vcol(llr_scores_TC_PCA),vcol(numpy.sort(llr_scores_TC_PCA)),LVAL, 0.1,1,1)
+
+    minDCF_NB05_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.5,1,1)
+    minDCF_NB09_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.9,1,1)
+    minDCF_NB01_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.1,1,1)
+
+
+# Printing DCF values
+print("DCF Values:")
+print(f"DCF_MVG05: {DCF_MVG05}")
+print(f"DCF_MVG09: {DCF_MVG09}")
+print(f"DCF_MVG01: {DCF_MVG01}")
+
+print(f"DCF_TC05: {DCF_TC05}")
+print(f"DCF_TC09: {DCF_TC09}")
+print(f"DCF_TC01: {DCF_TC01}")
+
+print(f"DCF_NB05: {DCF_NB05}")
+print(f"DCF_NB09: {DCF_NB09}")
+print(f"DCF_NB01: {DCF_NB01}")
+
+# Printing minDCF values
+print("\nminDCF Values:")
+print(f"minDCF_MVG05: {minDCF_MVG05}")
+print(f"minDCF_MVG09: {minDCF_MVG09}")
+print(f"minDCF_MVG01: {minDCF_MVG01}")
+
+print(f"minDCF_TC05: {minDCF_TC05}")
+print(f"minDCF_TC09: {minDCF_TC09}")
+print(f"minDCF_TC01: {minDCF_TC01}")
+
+print(f"minDCF_NB05: {minDCF_NB05}")
+print(f"minDCF_NB09: {minDCF_NB09}")
+print(f"minDCF_NB01: {minDCF_NB01}")
+
+
+# Printing DCF values with PCA
+print("\nDCF Values with PCA:")
+print(f"DCF_MVG05_PCA: {DCF_MVG05_PCA}")
+print(f"DCF_MVG09_PCA: {DCF_MVG09_PCA}")
+print(f"DCF_MVG01_PCA: {DCF_MVG01_PCA}")
+
+print(f"DCF_TC05_PCA: {DCF_TC05_PCA}")
+print(f"DCF_TC09_PCA: {DCF_TC09_PCA}")
+print(f"DCF_TC01_PCA: {DCF_TC01_PCA}")
+
+print(f"DCF_NB05_PCA: {DCF_NB05_PCA}")
+print(f"DCF_NB09_PCA: {DCF_NB09_PCA}")
+print(f"DCF_NB01_PCA: {DCF_NB01_PCA}")
+
+# Printing minDCF values with PCA
+print("\nminDCF Values with PCA:")
+print(f"minDCF_MVG05_PCA: {minDCF_MVG05_PCA}")
+print(f"minDCF_MVG09_PCA: {minDCF_MVG09_PCA}")
+print(f"minDCF_MVG01_PCA: {minDCF_MVG01_PCA}")
+
+print(f"minDCF_TC05_PCA: {minDCF_TC05_PCA}")
+print(f"minDCF_TC09_PCA: {minDCF_TC09_PCA}")
+print(f"minDCF_TC01_PCA: {minDCF_TC01_PCA}")
+
+print(f"minDCF_NB05_PCA: {minDCF_NB05_PCA}")
+print(f"minDCF_NB09_PCA: {minDCF_NB09_PCA}")
+print(f"minDCF_NB01_PCA: {minDCF_NB01_PCA}")
+
+# The best model for (0.1,1,1) with PCA is MVG, m=5
+# m=5 and (0.1,1,1) will be our main application
+
+# Bayes error plots:
+
+effPriorLogOdds = numpy.linspace(-4, 4, 40)
+bayes_error_plot(effPriorLogOdds, llr_scores_MVG_PCA,llr_scores_TC_PCA,llr_scores_NB_PCA,LVAL)
