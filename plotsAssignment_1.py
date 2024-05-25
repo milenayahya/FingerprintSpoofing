@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import ProjectAssignment_1 as main
 
 if __name__== '__main__':
-    ### Analysing attributes: Histogreenams
+    ### Analysing attributes: Histograms
         
     features, labels = main.load('trainData.txt')
 

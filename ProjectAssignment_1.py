@@ -282,22 +282,17 @@ def Bayes_Decision(llr,pi, Cfn, Cfp):
     return c
 
 def min_cost(llr,thresholds,labels,pi,Cfn,Cfp):
-    res =numpy.array(len(thresholds))
-    Pfn =numpy.array(len(thresholds))
-    Pfp =numpy.array(len(thresholds))
+    res =[]
+    Pfn =[]
+    Pfp =[]
     for t in thresholds:
         c= numpy.where(llr<=t,0,1)
         conf_mat = compute_conf_matrix(c,labels)
         dcf, dcf_norm, pfn,pfp = binary_dcf(c,labels,pi,Cfn,Cfp)
-        if res is None:
-            res=dcf_norm
-            Pfn=pfn
-            Pfp= pfp
-         
-        else:
-            res = numpy.append(res,dcf_norm)
-            Pfn = numpy.append(Pfn,pfn)
-            Pfp = numpy.append(Pfp,pfp)
+       
+        res.append(dcf_norm)
+        Pfn.append(pfn)
+        Pfp.append(pfp)
            
     minDCF = min(res)
 
@@ -389,6 +384,35 @@ def bayes_error_plot(effPriorLogOdds, llr_MVG, llr_TC, llr_NB, labels):
     plt.legend()
     plt.show()
 
+def trainLogReg(DTR,LTR,l,prior=None):
+    def logreg_obj(v):
+
+        n = LTR.shape[0]
+        w = v[0:-1]
+        b =  v[-1]
+        ZTR = 2*LTR -1
+        S = (vcol(w).T @ DTR + b).ravel()
+        epsilon=1 
+        if prior:
+            nT = numpy.sum(LTR==1)
+            nF = n - nT
+            epsilon = numpy.where(ZTR==1, prior/nT, (1-prior)/nF)
+            
+        t1 = (l/2)*numpy.linalg.norm(w) ** 2
+        t2 = (1/n) * numpy.sum(epsilon*numpy.logaddexp(0,-ZTR*S)) #output loss shape (d+1,)== [w,b]
+        
+        J = t1 + t2
+
+        G = -ZTR/(1.0 + numpy.exp(ZTR*S))
+        Jw = l*w + (1/n)*numpy.sum(epsilon*(vrow(G)*DTR), axis=1) #(4,)
+        Jb = (numpy.sum((epsilon*G)/n)) # scalar
+        dJ = numpy.concatenate([Jw, [Jb]])
+        
+        return J, dJ
+
+    x_min, f_min, d = scipy.optimize.fmin_l_bfgs_b(func = logreg_obj, x0 = numpy.zeros(DTR.shape[0]+1), approx_grad=False,maxfun=50000,factr=100)
+    return x_min, f_min, d 
+
 
 if __name__ == '__main__':
 
@@ -400,7 +424,7 @@ if __name__ == '__main__':
     features_classT = features[:,labels.flatten()==1]
     features_classF = features[:,labels.flatten()==0]
 
-    computeStats(features_classT,features_classF)
+    #computeStats(features_classT,features_classF)
  
     # PCA, LDA, & Classification --Assignment 2
 
@@ -415,6 +439,7 @@ if __name__ == '__main__':
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
+    '''
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     print("LDA: Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
@@ -424,7 +449,7 @@ if __name__ == '__main__':
     print("LDA + PCA : Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
     # Gaussian Models --Assignment 3
-    '''
+    
     for i in range(features.shape[0]):
         
         featuresT = features[i,labels.flatten()==1].reshape(1,sum(labels.flatten()==1))
@@ -446,7 +471,7 @@ if __name__ == '__main__':
         plt.legend()
         plt.title('Feature %d' % (i+1))
         plt.show()
-    '''
+    
 
     ## Assignment 4
 
@@ -471,7 +496,7 @@ if __name__ == '__main__':
     print("NB: Accuracy, Error: ", accuracyNB,errorNB)
 
     #### ANALYSIS
-    '''
+   
     DF= DTR[:, LTR.flatten()==0]
     DT= DTR[:, LTR.flatten()==1]
     mF, cF = ML(DF)
@@ -484,7 +509,7 @@ if __name__ == '__main__':
 
     print("Correlation matrix of True class: ", CorrT)
     print("Correlation matrix of False class: ", CorrF)
-    '''
+
 
     ## Discarding the last two features, as they do not satisfy the assumption 
     ## that features can be jointly modeled by Gaussian distributions. 
@@ -656,67 +681,137 @@ if __name__ == '__main__':
     minDCF_NB01_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.1,1,1)
 
 
-# Printing DCF values
-print("DCF Values:")
-print(f"DCF_MVG05: {DCF_MVG05}")
-print(f"DCF_MVG09: {DCF_MVG09}")
-print(f"DCF_MVG01: {DCF_MVG01}")
+    # Printing DCF values
+    print("DCF Values:")
+    print(f"DCF_MVG05: {DCF_MVG05}")
+    print(f"DCF_MVG09: {DCF_MVG09}")
+    print(f"DCF_MVG01: {DCF_MVG01}")
 
-print(f"DCF_TC05: {DCF_TC05}")
-print(f"DCF_TC09: {DCF_TC09}")
-print(f"DCF_TC01: {DCF_TC01}")
+    print(f"DCF_TC05: {DCF_TC05}")
+    print(f"DCF_TC09: {DCF_TC09}")
+    print(f"DCF_TC01: {DCF_TC01}")
 
-print(f"DCF_NB05: {DCF_NB05}")
-print(f"DCF_NB09: {DCF_NB09}")
-print(f"DCF_NB01: {DCF_NB01}")
+    print(f"DCF_NB05: {DCF_NB05}")
+    print(f"DCF_NB09: {DCF_NB09}")
+    print(f"DCF_NB01: {DCF_NB01}")
 
-# Printing minDCF values
-print("\nminDCF Values:")
-print(f"minDCF_MVG05: {minDCF_MVG05}")
-print(f"minDCF_MVG09: {minDCF_MVG09}")
-print(f"minDCF_MVG01: {minDCF_MVG01}")
+    # Printing minDCF values
+    print("\nminDCF Values:")
+    print(f"minDCF_MVG05: {minDCF_MVG05}")
+    print(f"minDCF_MVG09: {minDCF_MVG09}")
+    print(f"minDCF_MVG01: {minDCF_MVG01}")
 
-print(f"minDCF_TC05: {minDCF_TC05}")
-print(f"minDCF_TC09: {minDCF_TC09}")
-print(f"minDCF_TC01: {minDCF_TC01}")
+    print(f"minDCF_TC05: {minDCF_TC05}")
+    print(f"minDCF_TC09: {minDCF_TC09}")
+    print(f"minDCF_TC01: {minDCF_TC01}")
 
-print(f"minDCF_NB05: {minDCF_NB05}")
-print(f"minDCF_NB09: {minDCF_NB09}")
-print(f"minDCF_NB01: {minDCF_NB01}")
+    print(f"minDCF_NB05: {minDCF_NB05}")
+    print(f"minDCF_NB09: {minDCF_NB09}")
+    print(f"minDCF_NB01: {minDCF_NB01}")
 
 
-# Printing DCF values with PCA
-print("\nDCF Values with PCA:")
-print(f"DCF_MVG05_PCA: {DCF_MVG05_PCA}")
-print(f"DCF_MVG09_PCA: {DCF_MVG09_PCA}")
-print(f"DCF_MVG01_PCA: {DCF_MVG01_PCA}")
+    # Printing DCF values with PCA
+    print("\nDCF Values with PCA:")
+    print(f"DCF_MVG05_PCA: {DCF_MVG05_PCA}")
+    print(f"DCF_MVG09_PCA: {DCF_MVG09_PCA}")
+    print(f"DCF_MVG01_PCA: {DCF_MVG01_PCA}")
 
-print(f"DCF_TC05_PCA: {DCF_TC05_PCA}")
-print(f"DCF_TC09_PCA: {DCF_TC09_PCA}")
-print(f"DCF_TC01_PCA: {DCF_TC01_PCA}")
+    print(f"DCF_TC05_PCA: {DCF_TC05_PCA}")
+    print(f"DCF_TC09_PCA: {DCF_TC09_PCA}")
+    print(f"DCF_TC01_PCA: {DCF_TC01_PCA}")
 
-print(f"DCF_NB05_PCA: {DCF_NB05_PCA}")
-print(f"DCF_NB09_PCA: {DCF_NB09_PCA}")
-print(f"DCF_NB01_PCA: {DCF_NB01_PCA}")
+    print(f"DCF_NB05_PCA: {DCF_NB05_PCA}")
+    print(f"DCF_NB09_PCA: {DCF_NB09_PCA}")
+    print(f"DCF_NB01_PCA: {DCF_NB01_PCA}")
 
-# Printing minDCF values with PCA
-print("\nminDCF Values with PCA:")
-print(f"minDCF_MVG05_PCA: {minDCF_MVG05_PCA}")
-print(f"minDCF_MVG09_PCA: {minDCF_MVG09_PCA}")
-print(f"minDCF_MVG01_PCA: {minDCF_MVG01_PCA}")
+    # Printing minDCF values with PCA
+    print("\nminDCF Values with PCA:")
+    print(f"minDCF_MVG05_PCA: {minDCF_MVG05_PCA}")
+    print(f"minDCF_MVG09_PCA: {minDCF_MVG09_PCA}")
+    print(f"minDCF_MVG01_PCA: {minDCF_MVG01_PCA}")
 
-print(f"minDCF_TC05_PCA: {minDCF_TC05_PCA}")
-print(f"minDCF_TC09_PCA: {minDCF_TC09_PCA}")
-print(f"minDCF_TC01_PCA: {minDCF_TC01_PCA}")
+    print(f"minDCF_TC05_PCA: {minDCF_TC05_PCA}")
+    print(f"minDCF_TC09_PCA: {minDCF_TC09_PCA}")
+    print(f"minDCF_TC01_PCA: {minDCF_TC01_PCA}")
 
-print(f"minDCF_NB05_PCA: {minDCF_NB05_PCA}")
-print(f"minDCF_NB09_PCA: {minDCF_NB09_PCA}")
-print(f"minDCF_NB01_PCA: {minDCF_NB01_PCA}")
+    print(f"minDCF_NB05_PCA: {minDCF_NB05_PCA}")
+    print(f"minDCF_NB09_PCA: {minDCF_NB09_PCA}")
+    print(f"minDCF_NB01_PCA: {minDCF_NB01_PCA}")
 
-# The best model for (0.1,1,1) with PCA is MVG, m=5
-# m=5 and (0.1,1,1) will be our main application
+    # The best model for (0.1,1,1) with PCA is MVG, m=5
+    # m=5 and (0.1,1,1) will be our main application
 
-# Bayes error plots:
+    # Bayes error plots:
 
-effPriorLogOdds = numpy.linspace(-4, 4, 40)
-bayes_error_plot(effPriorLogOdds, llr_scores_MVG_PCA,llr_scores_TC_PCA,llr_scores_NB_PCA,LVAL)
+    effPriorLogOdds = numpy.linspace(-4, 4, 40)
+    bayes_error_plot(effPriorLogOdds, llr_scores_MVG_PCA,llr_scores_TC_PCA,llr_scores_NB_PCA,LVAL)
+
+    '''
+    # Assignment 6: Lab 8 - Logistic Regression
+
+    n = LTR.shape[0]
+    pi_emp = numpy.sum(LTR==1)/n
+    lambdaa = numpy.logspace(-4, 2, 13)
+
+    DCF_LR= []
+    minDCF_LR= []
+
+    for l in lambdaa:
+            
+        x_min, f_min, d = trainLogReg(DTR,LTR,l)
+        w = x_min[0:-1]
+        b = x_min[-1]
+        #scoring the validation samples
+        S = (vcol(w).T @ DVAL + b).ravel()
+        S_llr = S - numpy.log(pi_emp/(1-pi_emp))
+
+        predicts = Bayes_Decision(S_llr,0.1,1,1)
+        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
+        minDCF,_,_ = min_cost(vcol(S_llr),vcol(numpy.sort(S_llr)),LVAL, 0.1,1,1)
+
+        DCF_LR.append(DCF)
+        minDCF_LR.append(minDCF)
+
+    print("DCF shape: ", len(DCF_LR))
+    plt.figure()
+    plt.plot(lambdaa, DCF_LR, label='DCF_LR', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR, label='minDCF_LR', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+
+    ## Subset of trainig data
+    DTR_sub= DTR[:, ::50]
+    LTR_sub= LTR[::50]
+
+    
+    n = LTR_sub.shape[0]
+    pi_emp = numpy.sum(LTR_sub==1)/n
+    lambdaa = numpy.logspace(-4, 2, 13)
+
+    DCF_LR= []
+    minDCF_LR= []
+
+    for l in lambdaa:
+            
+        x_min, f_min, d = trainLogReg(DTR_sub,LTR_sub,l)
+        w = x_min[0:-1]
+        b = x_min[-1]
+        #scoring the validation samples
+        S = (vcol(w).T @ DVAL + b).ravel()
+        S_llr = S - numpy.log(pi_emp/(1-pi_emp))
+
+        predicts = Bayes_Decision(S_llr,0.1,1,1)
+        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
+        minDCF,_,_ = min_cost(vcol(S_llr),vcol(numpy.sort(S_llr)),LVAL, 0.1,1,1)
+
+        DCF_LR.append(DCF)
+        minDCF_LR.append(minDCF)
+
+    print("DCF shape: ", len(DCF_LR))
+    plt.figure()
+    plt.plot(lambdaa, DCF_LR, label='DCF_LR', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR, label='minDCF_LR', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
