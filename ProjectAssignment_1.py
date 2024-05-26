@@ -384,35 +384,37 @@ def bayes_error_plot(effPriorLogOdds, llr_MVG, llr_TC, llr_NB, labels):
     plt.legend()
     plt.show()
 
-def trainLogReg(DTR,LTR,l,prior=None):
+def trainLogReg(DTR, LTR, l, prior=None):
     def logreg_obj(v):
-
         n = LTR.shape[0]
         w = v[0:-1]
-        b =  v[-1]
-        ZTR = 2*LTR -1
+        b = v[-1]
+        ZTR = 2 * LTR - 1
         S = (vcol(w).T @ DTR + b).ravel()
-        epsilon=1 
-        if prior:
-            nT = numpy.sum(LTR==1)
-            nF = n - nT
-            epsilon = numpy.where(ZTR==1, prior/nT, (1-prior)/nF)
-            
-        t1 = (l/2)*numpy.linalg.norm(w) ** 2
-        t2 = (1/n) * numpy.sum(epsilon*numpy.logaddexp(0,-ZTR*S)) #output loss shape (d+1,)== [w,b]
+        G = -ZTR / (1.0 + numpy.exp(ZTR * S))
         
-        J = t1 + t2
-
-        G = -ZTR/(1.0 + numpy.exp(ZTR*S))
-        Jw = l*w + (1/n)*numpy.sum(epsilon*(vrow(G)*DTR), axis=1) #(4,)
-        Jb = (numpy.sum((epsilon*G)/n)) # scalar
+        if prior is not None:
+            nT = numpy.sum(LTR == 1)
+            nF = numpy.sum(LTR == 0)
+            epsilon = numpy.where(ZTR == 1, prior / nT, (1 - prior) / nF)
+            t2 = numpy.sum(epsilon * numpy.logaddexp(0, -ZTR * S))  # output loss shape (d+1,) == [w,b]
+            Jw = l * w + numpy.sum(epsilon * (vrow(G) * DTR), axis=1)   # (d,)
+            Jb = numpy.sum(epsilon * G)   # scalar
+        else:
+            epsilon = numpy.ones(n)
+            t2 = numpy.sum(epsilon * numpy.logaddexp(0, -ZTR * S)) /n # output loss shape (d+1,) == [w,b]
+            Jw = l * w + numpy.sum(epsilon * (vrow(G) * DTR), axis=1) / n  # (d,)
+            Jb = numpy.sum(epsilon * G) / n  # scalar
+        
+        t1 = (l / 2) * numpy.linalg.norm(w) ** 2
+        J = t1 + t2 
         dJ = numpy.concatenate([Jw, [Jb]])
         
         return J, dJ
 
-    x_min, f_min, d = scipy.optimize.fmin_l_bfgs_b(func = logreg_obj, x0 = numpy.zeros(DTR.shape[0]+1), approx_grad=False,maxfun=50000,factr=100)
-    return x_min, f_min, d 
-
+    x0 = numpy.zeros(DTR.shape[0] + 1)
+    x_min, f_min, d = scipy.optimize.fmin_l_bfgs_b(func=logreg_obj, x0=x0, approx_grad=False, maxfun=50000, factr=100)
+    return x_min, f_min, d
 
 if __name__ == '__main__':
 
@@ -789,8 +791,8 @@ if __name__ == '__main__':
     pi_emp = numpy.sum(LTR_sub==1)/n
     lambdaa = numpy.logspace(-4, 2, 13)
 
-    DCF_LR= []
-    minDCF_LR= []
+    DCF_LR_sub= []
+    minDCF_LR_sub= []
 
     for l in lambdaa:
             
@@ -805,13 +807,40 @@ if __name__ == '__main__':
         _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
         minDCF,_,_ = min_cost(vcol(S_llr),vcol(numpy.sort(S_llr)),LVAL, 0.1,1,1)
 
-        DCF_LR.append(DCF)
-        minDCF_LR.append(minDCF)
+        DCF_LR_sub.append(DCF)
+        minDCF_LR_sub.append(minDCF)
 
-    print("DCF shape: ", len(DCF_LR))
     plt.figure()
-    plt.plot(lambdaa, DCF_LR, label='DCF_LR', color='#ADD8E6')
-    plt.plot(lambdaa, minDCF_LR, label='minDCF_LR', color='#00008B')
+    plt.plot(lambdaa, DCF_LR_sub, label='DCF_LR_sub', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR_sub, label='minDCF_LR_sub', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+
+    ## Prior-weighted LR:
+    pi_prior = numpy.sum(LVAL==1)/LVAL.shape[0]
+    DCF_LR_prior= []
+    minDCF_LR_prior= []
+
+    for l in lambdaa:
+            
+        x_min, f_min, d = trainLogReg(DTR,LTR,l)
+        w = x_min[0:-1]
+        b = x_min[-1]
+        #scoring the validation samples
+        S = (vcol(w).T @ DVAL + b).ravel()
+        S_llr_prior = S - numpy.log(pi_prior/(1-pi_prior))
+
+        predicts = Bayes_Decision(S_llr_prior,0.1,1,1)
+        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
+        minDCF,_,_ = min_cost(vcol(S_llr_prior),vcol(numpy.sort(S_llr_prior)),LVAL, 0.1,1,1)
+
+        DCF_LR_prior.append(DCF)
+        minDCF_LR_prior.append(minDCF)
+
+    plt.figure()
+    plt.plot(lambdaa, DCF_LR_prior, label='DCF_LR_prior', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR_prior, label='minDCF_LR_prior', color='#00008B')
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
