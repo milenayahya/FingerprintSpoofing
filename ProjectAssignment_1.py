@@ -416,6 +416,17 @@ def trainLogReg(DTR, LTR, l, prior=None):
     x_min, f_min, d = scipy.optimize.fmin_l_bfgs_b(func=logreg_obj, x0=x0, approx_grad=False, maxfun=50000, factr=100)
     return x_min, f_min, d
 
+def quadratic_features(X):
+    D,n = X.shape
+    Phi = numpy.zeros((D**2+D, n))
+    for i in range(n):
+        #extract i-th sample
+        x_i = X[:,i].reshape(-1,1)
+        product = numpy.dot(x_i, x_i.T).flatten()
+        Phi[:,i] = numpy.concatenate([product,x_i.flatten()])
+    print("Phi shape: ", Phi.shape)
+    return Phi
+
 if __name__ == '__main__':
 
     ## Data loading, visualization, and statistics --Assignment 1
@@ -782,6 +793,8 @@ if __name__ == '__main__':
     plt.xscale('log', base=10)
     plt.show()
 
+    '''
+
     ## Subset of trainig data
     DTR_sub= DTR[:, ::50]
     LTR_sub= LTR[::50]
@@ -841,6 +854,82 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(lambdaa, DCF_LR_prior, label='DCF_LR_prior', color='#ADD8E6')
     plt.plot(lambdaa, minDCF_LR_prior, label='minDCF_LR_prior', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+
+    ## Quadratic Linear Regression
+    DTR_quadratic= quadratic_features(DTR)
+    DVAL_quadratic= quadratic_features(DVAL)
+
+    n = LTR.shape[0]
+    pi_emp = numpy.sum(LTR==1)/n
+    lambdaa = numpy.logspace(-4, 2, 13)
+
+    DCF_LR_quad= []
+    minDCF_LR_quad= []
+
+    for l in lambdaa:
+            
+        x_min, f_min, d = trainLogReg(DTR_quadratic,LTR,l)
+        w = x_min[0:-1]
+        b = x_min[-1]
+        #scoring the validation samples
+        S = (vcol(w).T @ DVAL_quadratic + b).ravel()
+        S_llr_quad = S - numpy.log(pi_emp/(1-pi_emp))
+
+        predicts = Bayes_Decision(S_llr_quad,0.1,1,1)
+        _,DCF_quad,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
+        minDCF_quad,_,_ = min_cost(vcol(S_llr_quad),vcol(numpy.sort(S_llr_quad)),LVAL, 0.1,1,1)
+
+        DCF_LR_quad.append(DCF_quad)
+        minDCF_LR_quad.append(minDCF_quad)
+
+    plt.figure()
+    plt.plot(lambdaa, DCF_LR_quad, label='DCF_LR_quad', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR_quad, label='minDCF_LR_quad', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+    '''
+
+    # Pre-processing the data
+    mean_TR, cov_TR = ML(DTR)
+    print("Cov: ", cov_TR)
+    var_TR = numpy.var(DTR)
+    DTR_z_norm = (DTR-mean_TR)/numpy.sqrt(var_TR)
+
+    eigenvals, eigenvecs = numpy.linalg.eigh(cov_TR)
+    A = eigenvecs @ numpy.diag(1.0/numpy.sqrt(eigenvals)) @ eigenvecs.T
+    
+    DTR_z_norm_white = A @ DTR_z_norm 
+    print("DTR_z_norm_white: ", DTR_z_norm_white)
+
+    DVAL_z_norm = (DVAL-mean_TR)/numpy.sqrt(var_TR)
+    DVAL_z_norm_white =  A @ DVAL_z_norm 
+
+    DCF_LR_preproc= []
+    minDCF_LR_preproc= []
+
+    for l in lambdaa:
+            
+        x_min, f_min, d = trainLogReg(DTR_z_norm_white,LTR,l)
+        w = x_min[0:-1]
+        b = x_min[-1]
+        #scoring the validation samples
+        S = (vcol(w).T @ DVAL_z_norm_white + b).ravel()
+        S_llr_preproc = S - numpy.log(pi_emp/(1-pi_emp))
+
+        predicts = Bayes_Decision(S_llr_preproc,0.1,1,1)
+        _,DCF_preproc,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
+        minDCF_preproc,_,_ = min_cost(vcol(S_llr_preproc),vcol(numpy.sort(S_llr_preproc)),LVAL, 0.1,1,1)
+
+        DCF_LR_preproc.append(DCF_preproc)
+        minDCF_LR_preproc.append(minDCF_preproc)
+
+    plt.figure()
+    plt.plot(lambdaa, DCF_LR_preproc, label='DCF_LR_preproc', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR_preproc, label='minDCF_LR_preproc', color='#00008B')
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
