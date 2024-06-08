@@ -424,8 +424,159 @@ def quadratic_features(X):
         x_i = X[:,i].reshape(-1,1)
         product = numpy.dot(x_i, x_i.T).flatten()
         Phi[:,i] = numpy.concatenate([product,x_i.flatten()])
-    print("Phi shape: ", Phi.shape)
     return Phi
+
+
+def poly_kernel(x1,x2,d,k,c):
+    G = numpy.dot(x1.T,x2)
+    K = (G+c)**d
+    return K+k
+
+def rbf_kernel(x1,x2,gamma,k):
+    distance = numpy.linalg.norm(x1-x2)**2
+    return (numpy.exp(-gamma*distance)+k)
+
+def rbf_kernel_matrix(D,gamma,k):
+    n = D.shape[1] # nb of samples
+    K = numpy.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            K[i,j]= rbf_kernel(D[:,i],D[:,j],gamma,k)
+    return K
+
+def rbf_kernel_scores(DTR, DVAL,alpha_opt,z, gamma,k):
+    ntr = DTR.shape[1]
+    nval = DVAL.shape[1]
+    scores = numpy.zeros(nval)
+    for i in range(nval):
+        for j in range(ntr):
+            scores[i] += alpha_opt[j]*z[j]*rbf_kernel(DTR[:,j],DVAL[:,i],gamma,k)
+    return scores
+
+def linear_SVM(DTR,DVAL,LTR,LVAL,k,C):
+        
+        n = LTR.shape[0]
+        nval = LVAL.shape[0]
+
+        bounds = [(0,C) for _ in range(n)]
+        alpha0 = numpy.random.uniform(0,C,n) 
+
+        K= numpy.ones((k,n))
+        Kval = numpy.ones((k,nval))
+         
+        z = numpy.where(LTR==1, 1, -1)
+
+        Dhat = numpy.vstack((DTR,K))
+        Ghat = numpy.dot(Dhat.T,Dhat)
+    
+        Hhat = Ghat * numpy.outer(z,z)
+
+        alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(Hhat,),factr=1.0)
+
+        #what_opt = numpy.dot(Dhat, alpha_opt * z)
+        what_opt = numpy.zeros(Dhat.shape[0])
+
+        # Compute the optimized weight vector
+        for i in range(alpha_opt.shape[0]):
+            what_opt += alpha_opt[i] * z[i] * Dhat[:, i]
+       
+        Dval_hat = numpy.vstack((DVAL,Kval))
+
+        score = numpy.dot(what_opt.T, Dval_hat)
+        predicts = numpy.where(score>0,1,0)
+
+        accuracy = numpy.sum(LVAL==predicts)/nval
+        error = 1 - accuracy
+        primal_sol = obj_primal_fun(what_opt,C,z,Dhat)
+        dual_sol_minimized = -obj_dual_fun(alpha_opt,Hhat)
+        gap = primal_sol-dual_sol_minimized
+
+        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,0.5,1,1)
+        minDCF,_,_ = min_cost(vcol(score), vcol(numpy.sort(score)),LVAL,0.5,1,1)
+
+        return primal_sol, dual_sol_minimized, gap, error, minDCF, DCF
+
+
+def poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,C):
+
+    n = LTR.shape[0]
+    nval = LVAL.shape[0]
+    z = numpy.where(LTR==1, 1, -1)
+
+    bounds = [(0,C) for _ in range(n)]
+    alpha0 = numpy.random.uniform(0,C,n) 
+    H_poly = numpy.outer(z,z)*poly_kernel(DTR,DTR,d,k,c)
+
+    alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(H_poly,),factr=1.0)
+
+    #what_opt = numpy.dot(Dhat, alpha_opt*z)
+    what_opt = numpy.zeros(DTR.shape[0])
+
+    # Compute the optimized weight vector
+    for i in range(alpha_opt.shape[0]):
+        what_opt += alpha_opt[i] * z[i] * DTR[:, i]
+
+    score = numpy.zeros(LVAL.shape[0])
+
+    for i in range(nval):
+        for j in range(n):
+            score[i] += alpha_opt[j]*z[j]*poly_kernel(DTR[:,j],DVAL[:,i],d,k,c)
+
+    predicts = numpy.where(score>0,1,0)
+
+    accuracy = numpy.sum(LVAL==predicts)/nval
+    error = 1 - accuracy
+    dual_sol_minimized = -obj_dual_fun(alpha_opt,H_poly)
+
+    _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,0.5,1,1)
+    minDCF,_,_ = min_cost(vcol(score), vcol(numpy.sort(score)),LVAL,0.5,1,1)
+
+    return dual_sol_minimized, error,DCF,minDCF
+
+def rbf_SVM(DTR,DVAL,LTR,LVAL,gamma,k,C):
+    
+    n = LTR.shape[0]
+    nval = LVAL.shape[0]
+    z = numpy.where(LTR==1, 1, -1)
+
+    bounds = [(0,C) for _ in range(n)]
+    alpha0 = numpy.random.uniform(0,C,n) 
+    H_rbf = numpy.outer(z,z)*rbf_kernel_matrix(DTR, gamma,k)
+
+    alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(H_rbf,),factr=1.0)
+
+    #what_opt = numpy.dot(Dhat, alpha_opt*z)
+    what_opt = numpy.zeros(DTR.shape[0])
+
+    # Compute the optimized weight vector
+    for i in range(alpha_opt.shape[0]):
+        what_opt += alpha_opt[i] * z[i] * DTR[:, i]
+
+    scores = rbf_kernel_scores(DTR,DVAL,alpha_opt,z,gamma,k)
+
+    predicts = numpy.where(scores>0,1,0)
+
+    accuracy = numpy.sum(LVAL==predicts)/nval
+    error = 1 - accuracy
+    dual_sol_minimized = -obj_dual_fun(alpha_opt,H_rbf)
+
+    _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,0.5,1,1)
+    minDCF,_,_ = min_cost(vcol(scores), vcol(numpy.sort(scores)),LVAL,0.5,1,1)
+
+    return dual_sol_minimized, error,DCF,minDCF
+
+def obj_dual_fun(alpha,Hhat):
+    return (0.5 * numpy.dot(alpha, numpy.dot(Hhat, alpha)) - numpy.sum(alpha))
+
+def obj_primal_fun(w,C,z,D):
+    n = z.size
+    ones = numpy.ones((1,n))
+    return (0.5*numpy.linalg.norm(w)**2 + C*(numpy.maximum(0,ones-z*(numpy.dot(w.T,D)))).sum())
+
+def gradient_fun(alpha,Hhat):
+    n= alpha.size
+    return (numpy.dot(Hhat,alpha) - numpy.ones((1,n))).reshape(n,)
+
 
 if __name__ == '__main__':
 
@@ -759,7 +910,7 @@ if __name__ == '__main__':
     effPriorLogOdds = numpy.linspace(-4, 4, 40)
     bayes_error_plot(effPriorLogOdds, llr_scores_MVG_PCA,llr_scores_TC_PCA,llr_scores_NB_PCA,LVAL)
 
-    '''
+    
     # Assignment 6: Lab 8 - Logistic Regression
 
     n = LTR.shape[0]
@@ -792,8 +943,9 @@ if __name__ == '__main__':
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
+    
 
-    '''
+    
 
     ## Subset of trainig data
     DTR_sub= DTR[:, ::50]
@@ -891,7 +1043,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
-    '''
+    
 
     # Pre-processing the data
     mean_TR, cov_TR = ML(DTR)
@@ -930,6 +1082,88 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(lambdaa, DCF_LR_preproc, label='DCF_LR_preproc', color='#ADD8E6')
     plt.plot(lambdaa, minDCF_LR_preproc, label='minDCF_LR_preproc', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+    ''' 
+
+    ### SVM
+    ## Linear SVM
+
+    '''
+    k=1
+    C= numpy.logspace(-5,0,11)
+
+    DCF_linearSVM = []
+    minDCF_linearSVM = []
+    mu = DTR.mean(1).reshape(DTR.shape[0],1)
+
+    for val in C:
+        _,_,_,_,minDCF,DCF = linear_SVM(DTR-mu,DVAL,LTR,LVAL,k,val)
+        DCF_linearSVM.append(DCF)
+        minDCF_linearSVM.append(minDCF)
+    
+    plt.figure()
+    plt.plot(C, DCF_linearSVM, label='DCF_linearSVM', color='#ADD8E6')
+    plt.plot(C, minDCF_linearSVM, label='minDCF_linearSVM', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+
+    
+
+    ## Poly-SVM
+
+    d = 2
+    c = 1
+    k = 0
+    C= numpy.logspace(-5,0,11)
+
+    DCF_polySVM = []
+    minDCF_polySVM = []
+
+    for val in C:
+        _,_,DCF,minDCF = poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,val)
+        DCF_polySVM.append(DCF)
+        minDCF_polySVM.append(minDCF)
+    
+    plt.figure()
+    plt.plot(C, DCF_polySVM, label='DCF_polySVM', color='#ADD8E6')
+    plt.plot(C, minDCF_polySVM, label='minDCF_polySVM', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.show()
+    '''
+    ## RBF-SVM
+    k = 1
+    gamma = [numpy.exp(-4),numpy.exp(-3),numpy.exp(-2),numpy.exp(-1)]
+    C =  numpy.logspace(-3,2,11)
+
+    DCF_rbfSVM = numpy.zeros((len(gamma),len(C)))
+    minDCF_rbfSVM = numpy.zeros((len(gamma),len(C)))
+    
+    i = 0
+    for gammaa in gamma:
+        DCF_arr = []
+        minDCF_arr = []
+        for val in C:
+            _,_,DCF,minDCF = rbf_SVM(DTR,DVAL,LTR,LVAL,gammaa,k,val)
+            DCF_arr.append(DCF)
+            minDCF_arr.append(minDCF)
+        
+        DCF_rbfSVM[i,:] = DCF_arr
+        minDCF_rbfSVM[i,:] = minDCF_arr
+        i += 1
+    
+    plt.figure()
+    plt.plot(C, DCF_rbfSVM[0,:], label='DCF_rbfSVM, gamma = e^-4', color='#ADD8E6')
+    plt.plot(C, minDCF_rbfSVM[0,:], label='minDCF_rbfSVM, gamma = e^-4', color='#00008B')    
+    plt.plot(C, DCF_rbfSVM[1,:], label='DCF_rbfSVM, gamma = e^-3', color='#FFB6C1')
+    plt.plot(C, minDCF_rbfSVM[1,:], label='minDCF_rbfSVM, gamma = e^-3', color='#8B0000')
+    plt.plot(C, DCF_rbfSVM[2,:], label='DCF_rbfSVM, gamma = e^-2', color='#90EE90')
+    plt.plot(C, minDCF_rbfSVM[2,:], label='minDCF_rbfSVM, gamma = e^-2', color='#006400')
+    plt.plot(C, DCF_rbfSVM[3,:], label='DCF_rbfSVM, gamma = e^-1', color='#FFA500')
+    plt.plot(C, minDCF_rbfSVM[3,:], label='minDCF_rbfSVM, gamma = e^-1', color='#FF8C00')
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
