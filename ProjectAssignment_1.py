@@ -129,7 +129,9 @@ def LDA_Classifier(DTR,LTR,DVAL,LVAL,pca_preprocessing,mPCA,plot):
         DVAL = numpy.dot(P.T,DVAL)
 
     ## training LDA
+    # train LDA using only training data
     LDA_TR, W = LDA_projection(DTR,LTR)
+    # project the validation data on the LDA direction
     LDA_VAL = numpy.dot(W.T, DVAL)
 
     if plot:
@@ -138,18 +140,25 @@ def LDA_Classifier(DTR,LTR,DVAL,LVAL,pca_preprocessing,mPCA,plot):
         val_true = LDA_VAL[:,LVAL.flatten()==1]
         val_false = LDA_VAL[:,LVAL.flatten()==0]
 
-        plt.figure
-        plt.hist(train_true[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
-        plt.hist(train_false[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
+        color_genuine = '#4E8098'
+        color_fake = '#A31621'
+        plt.figure(figsize=(12, 6))  # Adjust figure size as needed
+
+        # Plot for training set
+        plt.subplot(1, 2, 1)
+        plt.hist(train_true[0], bins=20, alpha=0.5, label='Genuine Fingerprints', color=color_genuine, density=True)
+        plt.hist(train_false[0], bins=20, alpha=0.5, label='Fake Fingerprints', color=color_fake, density=True)
         plt.title("LDA Projection on Training Set")
         plt.legend()
-        plt.show()
 
-        plt.figure
-        plt.hist(val_true[0],bins=10, alpha=0.5, label= 'Genuine Fingerprints', color='green', density= True)
-        plt.hist(val_false[0],bins=10, alpha=0.5, label= 'Fake Fingerprints', color='red', density= True)
+        # Plot for validation set
+        plt.subplot(1, 2, 2)
+        plt.hist(val_true[0], bins=20, alpha=0.5, label='Genuine Fingerprints', color=color_genuine, density=True)
+        plt.hist(val_false[0], bins=20, alpha=0.5, label='Fake Fingerprints', color=color_fake, density=True)
         plt.title("LDA Projection on Validation Set")
         plt.legend()
+
+        plt.tight_layout()  # Ensures proper spacing between subplots
         plt.show()
 
 
@@ -371,7 +380,6 @@ def bayes_error_plot(effPriorLogOdds, llr_MVG, llr_TC, llr_NB, labels):
             DCF_NB = numpy.append(DCF_NB,dcf_norm_NB)
             DCF_MIN_NB = numpy.append(DCF_MIN_NB,minDCF_NB)
     
-    print("size of DCF_MVG, DCF_TC, DCF_BV: ", len(DCF_MVG),len(DCF_TC),len(DCF_NB))
     plt.figure()
     plt.plot(effPriorLogOdds, DCF_MVG, label='DCF_MVG', color='#ADD8E6')
     plt.plot(effPriorLogOdds, DCF_MIN_MVG, label='minDCF_MVG', color='#00008B')
@@ -425,6 +433,48 @@ def quadratic_features(X):
         product = numpy.dot(x_i, x_i.T).flatten()
         Phi[:,i] = numpy.concatenate([product,x_i.flatten()])
     return Phi
+
+def logistic_regression_analysis(DTR, LTR, DVAL, LVAL, pi_emp=None, title="DCF_LR", label_prefix="", quadratic=False):
+    if quadratic:
+        DTR = quadratic_features(DTR)
+        DVAL = quadratic_features(DVAL)
+        
+    n = LTR.shape[0]
+    if pi_emp is None:
+        pi_emp = numpy.sum(LTR == 1) / n
+    
+    lambdaa = numpy.logspace(-4, 2, 13)
+
+    DCF_LR = []
+    minDCF_LR = []
+
+    for l in lambdaa:
+        x_min, f_min, d = trainLogReg(DTR, LTR, l)
+        w = x_min[0:-1]
+        b = x_min[-1]
+        # scoring the validation samples
+        S = (vcol(w).T @ DVAL + b).ravel()
+        S_llr = S - numpy.log(pi_emp / (1 - pi_emp))
+
+        predicts = Bayes_Decision(S_llr, 0.1, 1, 1)
+        _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, 0.1, 1, 1)
+        minDCF, _, _ = min_cost(vcol(S_llr), vcol(numpy.sort(S_llr)), LVAL, 0.1, 1, 1)
+
+        DCF_LR.append(DCF)
+        minDCF_LR.append(minDCF)
+
+    plt.figure()
+    plt.plot(lambdaa, DCF_LR, label=f'{label_prefix}DCF_LR', color='#ADD8E6')
+    plt.plot(lambdaa, minDCF_LR, label=f'{label_prefix}minDCF_LR', color='#00008B')
+    plt.legend()
+    plt.xscale('log', base=10)
+    plt.title(title)
+    plt.show()
+
+    best_minDCF = numpy.min(minDCF_LR)
+    best_minDCF_index = numpy.argmin(minDCF_LR)
+    bestDCF = DCF_LR[best_minDCF_index]
+    return best_minDCF, bestDCF, minDCF_LR, DCF_LR
 
 
 def poly_kernel(x1,x2,d,k,c):
@@ -584,9 +634,11 @@ if __name__ == '__main__':
 
     features, labels = load('trainData.txt')
     labels= labels.flatten()
+    color_genuine = '#4E8098'
+    color_fake = '#A31621'
 
-    features_classT = features[:,labels.flatten()==1]
-    features_classF = features[:,labels.flatten()==0]
+    # features_classT = features[:,labels.flatten()==1]
+    # features_classF = features[:,labels.flatten()==0]
 
     #computeStats(features_classT,features_classF)
  
@@ -607,36 +659,42 @@ if __name__ == '__main__':
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     print("LDA: Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
-
     # preprocessing with PCA then LDA classification
-    error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,True,6,False)
+    error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,True,1,False)
     print("LDA + PCA : Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
-    
+
     # Gaussian Models --Assignment 3
-    
-    for i in range(features.shape[0]):
         
-        featuresT = features[i,labels.flatten()==1].reshape(1,sum(labels.flatten()==1))
-        featuresF = features[i,labels.flatten()==0].reshape(1,sum(labels.flatten()==0))
-       
-        meanT,covT = ML(featuresT)
-        meanF,covF = ML(featuresF)
+    fig, axes = plt.subplots(2,3, figsize=(18,12))
+    fig.tight_layout(pad=5.0)
 
-        logNxT = logpdf_GAU_ND(featuresT,meanT,covT)
-        logNxF = logpdf_GAU_ND(featuresF,meanF,covF)
+    for i in range(features.shape[0]):
+        featuresT = features[i, labels.flatten() == 1].reshape(1, sum(labels.flatten() == 1))
+        featuresF = features[i, labels.flatten() == 0].reshape(1, sum(labels.flatten() == 0))
 
-        plt.figure()
-        plt.hist(featuresT.reshape(sum(labels.flatten()==1)), bins=20, alpha=0.5, label= 'Genuine Fingerprint', color='green', density= True)
-        plt.hist(featuresF.reshape(sum(labels.flatten()==0)), bins=20, alpha=0.5, label= 'Fake Fingerprint', color='red', density= True)
+        meanT, covT = ML(featuresT)
+        meanF, covF = ML(featuresF)
+
+        logNxT = logpdf_GAU_ND(featuresT, meanT, covT)
+        logNxF = logpdf_GAU_ND(featuresF, meanF, covF)
+
+        ax = axes[i]
+        ax.hist(featuresT.flatten(), bins=20, alpha=0.5, label='Genuine Fingerprint', color=color_genuine, density=True)
+        ax.hist(featuresF.flatten(), bins=20, alpha=0.5, label='Fake Fingerprint', color=color_fake, density=True)
+        
         XPlot1 = numpy.linspace(-4, 4, featuresT.shape[1]).reshape(1, featuresT.shape[1])
         XPlot2 = numpy.linspace(-4, 4, featuresF.shape[1]).reshape(1, featuresF.shape[1])
-        plt.plot(XPlot1.ravel(), numpy.exp(logpdf_GAU_ND(XPlot1,meanT,covT)), color='green')
-        plt.plot(XPlot2.ravel(), numpy.exp(logpdf_GAU_ND(XPlot2,meanF,covF)), color='red')
-        plt.legend()
-        plt.title('Feature %d' % (i+1))
-        plt.show()
-    
+        
+        ax.plot(XPlot1.ravel(), numpy.exp(logpdf_GAU_ND(XPlot1, meanT, covT)), color=color_genuine)
+        ax.plot(XPlot2.ravel(), numpy.exp(logpdf_GAU_ND(XPlot2, meanF, covF)), color=color_fake)
+        
+        ax.legend()
+        ax.set_title('Feature %d' % (i + 1))
 
+    plt.show()
+    '''
+    
+    '''
     ## Assignment 4
 
     ## MVG
@@ -659,27 +717,28 @@ if __name__ == '__main__':
     print("TC: Accuracy, Error: ", accuracyTC,errorTC)
     print("NB: Accuracy, Error: ", accuracyNB,errorNB)
 
+    
     #### ANALYSIS
    
     DF= DTR[:, LTR.flatten()==0]
     DT= DTR[:, LTR.flatten()==1]
     mF, cF = ML(DF)
     mT, cT = ML(DT)
-    print("Covariance matrix of True class: ", cT)
-    print("Covariance matrix of False class: ", cF)
+    # print("Covariance matrix of True class: ", cT)
+    # print("Covariance matrix of False class: ", cF)
 
     CorrT =  cT/ ( vcol(cT.diagonal()**0.5) * vrow(cT.diagonal()**0.5) )
     CorrF =  cF/ ( vcol(cF.diagonal()**0.5) * vrow(cF.diagonal()**0.5) )
 
-    print("Correlation matrix of True class: ", CorrT)
-    print("Correlation matrix of False class: ", CorrF)
+    # print("Correlation matrix of True class: ", CorrT)
+    # print("Correlation matrix of False class: ", CorrF)
 
 
     ## Discarding the last two features, as they do not satisfy the assumption 
     ## that features can be jointly modeled by Gaussian distributions. 
 
     ## MVG
-
+    
     DTR_4_features = DTR[:4,:]
     DVAL_4_features = DVAL[:4,:]
     
@@ -733,9 +792,10 @@ if __name__ == '__main__':
 
     print("MVG features 3 and 4: Accuracy, Error: ", accuracyMVG,errorMVG)
     print("TC features 3 and 4: Accuracy, Error: ", accuracyTC,errorTC)
-
+    
+  
     ## Applying PCA
-    m=5
+    m=1
     DTR_PCA,P = PCA_projection(m, DTR)
     DVAL_PCA = numpy.dot(P.T,DVAL)
 
@@ -759,8 +819,8 @@ if __name__ == '__main__':
     print("MVG+PCA: Accuracy, Error: ", accuracyMVG,errorMVG)
     print("TC+PCA: Accuracy, Error: ", accuracyTC,errorTC)
     print("NB+PCA: Accuracy, Error: ", accuracyNB,errorNB)
-
-
+    
+    
     ## Assignment 5 - Lab 7
     pi_tilde1 = effective_prior(0.5,1,9)
     pi_tilde2 = effective_prior(0.5,9,1)
@@ -902,195 +962,55 @@ if __name__ == '__main__':
     print(f"minDCF_NB09_PCA: {minDCF_NB09_PCA}")
     print(f"minDCF_NB01_PCA: {minDCF_NB01_PCA}")
 
-    # The best model for (0.1,1,1) with PCA is MVG, m=5
-    # m=5 and (0.1,1,1) will be our main application
+    # The best PCA setup for pi-tilde = 0.1 is no PCA
 
     # Bayes error plots:
 
     effPriorLogOdds = numpy.linspace(-4, 4, 40)
-    bayes_error_plot(effPriorLogOdds, llr_scores_MVG_PCA,llr_scores_TC_PCA,llr_scores_NB_PCA,LVAL)
-
+    bayes_error_plot(effPriorLogOdds, llr_scores_MVG,llr_scores_TC,llr_scores_NB,LVAL)
+    
     
     # Assignment 6: Lab 8 - Logistic Regression
 
-    n = LTR.shape[0]
-    pi_emp = numpy.sum(LTR==1)/n
-    lambdaa = numpy.logspace(-4, 2, 13)
+    # Original Data
+    best_minDCF, bestDCF,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL)
+    print("Best minDCF, actualDCF (Original Data):", best_minDCF, bestDCF)
 
-    DCF_LR= []
-    minDCF_LR= []
+    # Subset of training data
+    DTR_sub = DTR[:, ::50]
+    LTR_sub = LTR[::50]
+    logistic_regression_analysis(DTR_sub, LTR_sub, DVAL, LVAL, title="DCF_LR_sub", label_prefix="sub_")
 
-    for l in lambdaa:
-            
-        x_min, f_min, d = trainLogReg(DTR,LTR,l)
-        w = x_min[0:-1]
-        b = x_min[-1]
-        #scoring the validation samples
-        S = (vcol(w).T @ DVAL + b).ravel()
-        S_llr = S - numpy.log(pi_emp/(1-pi_emp))
 
-        predicts = Bayes_Decision(S_llr,0.1,1,1)
-        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
-        minDCF,_,_ = min_cost(vcol(S_llr),vcol(numpy.sort(S_llr)),LVAL, 0.1,1,1)
+    # Prior-weighted LR
+    pi_prior = numpy.sum(LVAL == 1) / LVAL.shape[0]
+    best_minDCF_prior, bestDCF_prior,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, pi_emp=pi_prior, title="DCF_LR_prior", label_prefix="prior_")
+    print("Best minDCF, actualDCF (Prior-weighted):", best_minDCF_prior, bestDCF_prior)
 
-        DCF_LR.append(DCF)
-        minDCF_LR.append(minDCF)
-
-    print("DCF shape: ", len(DCF_LR))
-    plt.figure()
-    plt.plot(lambdaa, DCF_LR, label='DCF_LR', color='#ADD8E6')
-    plt.plot(lambdaa, minDCF_LR, label='minDCF_LR', color='#00008B')
-    plt.legend()
-    plt.xscale('log', base=10)
-    plt.show()
-    
-
-    
-
-    ## Subset of trainig data
-    DTR_sub= DTR[:, ::50]
-    LTR_sub= LTR[::50]
-
-    
-    n = LTR_sub.shape[0]
-    pi_emp = numpy.sum(LTR_sub==1)/n
-    lambdaa = numpy.logspace(-4, 2, 13)
-
-    DCF_LR_sub= []
-    minDCF_LR_sub= []
-
-    for l in lambdaa:
-            
-        x_min, f_min, d = trainLogReg(DTR_sub,LTR_sub,l)
-        w = x_min[0:-1]
-        b = x_min[-1]
-        #scoring the validation samples
-        S = (vcol(w).T @ DVAL + b).ravel()
-        S_llr = S - numpy.log(pi_emp/(1-pi_emp))
-
-        predicts = Bayes_Decision(S_llr,0.1,1,1)
-        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
-        minDCF,_,_ = min_cost(vcol(S_llr),vcol(numpy.sort(S_llr)),LVAL, 0.1,1,1)
-
-        DCF_LR_sub.append(DCF)
-        minDCF_LR_sub.append(minDCF)
-
-    plt.figure()
-    plt.plot(lambdaa, DCF_LR_sub, label='DCF_LR_sub', color='#ADD8E6')
-    plt.plot(lambdaa, minDCF_LR_sub, label='minDCF_LR_sub', color='#00008B')
-    plt.legend()
-    plt.xscale('log', base=10)
-    plt.show()
-
-    ## Prior-weighted LR:
-    pi_prior = numpy.sum(LVAL==1)/LVAL.shape[0]
-    DCF_LR_prior= []
-    minDCF_LR_prior= []
-
-    for l in lambdaa:
-            
-        x_min, f_min, d = trainLogReg(DTR,LTR,l)
-        w = x_min[0:-1]
-        b = x_min[-1]
-        #scoring the validation samples
-        S = (vcol(w).T @ DVAL + b).ravel()
-        S_llr_prior = S - numpy.log(pi_prior/(1-pi_prior))
-
-        predicts = Bayes_Decision(S_llr_prior,0.1,1,1)
-        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
-        minDCF,_,_ = min_cost(vcol(S_llr_prior),vcol(numpy.sort(S_llr_prior)),LVAL, 0.1,1,1)
-
-        DCF_LR_prior.append(DCF)
-        minDCF_LR_prior.append(minDCF)
-
-    plt.figure()
-    plt.plot(lambdaa, DCF_LR_prior, label='DCF_LR_prior', color='#ADD8E6')
-    plt.plot(lambdaa, minDCF_LR_prior, label='minDCF_LR_prior', color='#00008B')
-    plt.legend()
-    plt.xscale('log', base=10)
-    plt.show()
-
-    ## Quadratic Linear Regression
-    DTR_quadratic= quadratic_features(DTR)
-    DVAL_quadratic= quadratic_features(DVAL)
-
-    n = LTR.shape[0]
-    pi_emp = numpy.sum(LTR==1)/n
-    lambdaa = numpy.logspace(-4, 2, 13)
-
-    DCF_LR_quad= []
-    minDCF_LR_quad= []
-
-    for l in lambdaa:
-            
-        x_min, f_min, d = trainLogReg(DTR_quadratic,LTR,l)
-        w = x_min[0:-1]
-        b = x_min[-1]
-        #scoring the validation samples
-        S = (vcol(w).T @ DVAL_quadratic + b).ravel()
-        S_llr_quad = S - numpy.log(pi_emp/(1-pi_emp))
-
-        predicts = Bayes_Decision(S_llr_quad,0.1,1,1)
-        _,DCF_quad,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
-        minDCF_quad,_,_ = min_cost(vcol(S_llr_quad),vcol(numpy.sort(S_llr_quad)),LVAL, 0.1,1,1)
-
-        DCF_LR_quad.append(DCF_quad)
-        minDCF_LR_quad.append(minDCF_quad)
-
-    plt.figure()
-    plt.plot(lambdaa, DCF_LR_quad, label='DCF_LR_quad', color='#ADD8E6')
-    plt.plot(lambdaa, minDCF_LR_quad, label='minDCF_LR_quad', color='#00008B')
-    plt.legend()
-    plt.xscale('log', base=10)
-    plt.show()
-    
+    # Quadratic Linear Regression
+    _,_,best_minDCF_quad, bestDCF_quad = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, title="DCF_LR_quad", label_prefix="quad_", quadratic=True)
+    print(" minDCF, actualDCF (Quadratic):", best_minDCF_quad,bestDCF_quad)
 
     # Pre-processing the data
     mean_TR, cov_TR = ML(DTR)
-    print("Cov: ", cov_TR)
     var_TR = numpy.var(DTR)
-    DTR_z_norm = (DTR-mean_TR)/numpy.sqrt(var_TR)
+    DTR_z_norm = (DTR - mean_TR) / numpy.sqrt(var_TR)
 
     eigenvals, eigenvecs = numpy.linalg.eigh(cov_TR)
-    A = eigenvecs @ numpy.diag(1.0/numpy.sqrt(eigenvals)) @ eigenvecs.T
-    
-    DTR_z_norm_white = A @ DTR_z_norm 
-    print("DTR_z_norm_white: ", DTR_z_norm_white)
+    A = eigenvecs @ numpy.diag(1.0 / numpy.sqrt(eigenvals)) @ eigenvecs.T
 
-    DVAL_z_norm = (DVAL-mean_TR)/numpy.sqrt(var_TR)
-    DVAL_z_norm_white =  A @ DVAL_z_norm 
+    DTR_z_norm_white = A @ DTR_z_norm
+    DVAL_z_norm = (DVAL - mean_TR) / numpy.sqrt(var_TR)
+    DVAL_z_norm_white = A @ DVAL_z_norm
 
-    DCF_LR_preproc= []
-    minDCF_LR_preproc= []
+    best_minDCF_preproc, bestDCF_preproc,_,_ = logistic_regression_analysis(DTR_z_norm_white, LTR, DVAL_z_norm_white, LVAL, title="DCF_LR_preproc", label_prefix="preproc_")
+    print("Best minDCF,actualDCF (Pre-processed):", best_minDCF_preproc, bestDCF_preproc)
 
-    for l in lambdaa:
-            
-        x_min, f_min, d = trainLogReg(DTR_z_norm_white,LTR,l)
-        w = x_min[0:-1]
-        b = x_min[-1]
-        #scoring the validation samples
-        S = (vcol(w).T @ DVAL_z_norm_white + b).ravel()
-        S_llr_preproc = S - numpy.log(pi_emp/(1-pi_emp))
-
-        predicts = Bayes_Decision(S_llr_preproc,0.1,1,1)
-        _,DCF_preproc,_,_ = binary_dcf(vcol(predicts),LVAL, 0.1,1,1)
-        minDCF_preproc,_,_ = min_cost(vcol(S_llr_preproc),vcol(numpy.sort(S_llr_preproc)),LVAL, 0.1,1,1)
-
-        DCF_LR_preproc.append(DCF_preproc)
-        minDCF_LR_preproc.append(minDCF_preproc)
-
-    plt.figure()
-    plt.plot(lambdaa, DCF_LR_preproc, label='DCF_LR_preproc', color='#ADD8E6')
-    plt.plot(lambdaa, minDCF_LR_preproc, label='minDCF_LR_preproc', color='#00008B')
-    plt.legend()
-    plt.xscale('log', base=10)
-    plt.show()
-    ''' 
+    '''
 
     ### SVM
     ## Linear SVM
 
-    '''
     k=1
     C= numpy.logspace(-5,0,11)
 
@@ -1099,10 +1019,12 @@ if __name__ == '__main__':
     mu = DTR.mean(1).reshape(DTR.shape[0],1)
 
     for val in C:
-        _,_,_,_,minDCF,DCF = linear_SVM(DTR-mu,DVAL,LTR,LVAL,k,val)
+        _,_,_,_,minDCF,DCF = linear_SVM(DTR,DVAL,LTR,LVAL,k,val)
         DCF_linearSVM.append(DCF)
         minDCF_linearSVM.append(minDCF)
-    
+    print("minDCF", minDCF_linearSVM)
+    print("dcf", DCF_linearSVM)
+
     plt.figure()
     plt.plot(C, DCF_linearSVM, label='DCF_linearSVM', color='#ADD8E6')
     plt.plot(C, minDCF_linearSVM, label='minDCF_linearSVM', color='#00008B')
@@ -1127,6 +1049,8 @@ if __name__ == '__main__':
         DCF_polySVM.append(DCF)
         minDCF_polySVM.append(minDCF)
     
+    print("minDCF", minDCF_polySVM)
+    print("dcf", DCF_polySVM)
     plt.figure()
     plt.plot(C, DCF_polySVM, label='DCF_polySVM', color='#ADD8E6')
     plt.plot(C, minDCF_polySVM, label='minDCF_polySVM', color='#00008B')
@@ -1135,6 +1059,7 @@ if __name__ == '__main__':
     plt.show()
     '''
     ## RBF-SVM
+    '''
     k = 1
     gamma = [numpy.exp(-4),numpy.exp(-3),numpy.exp(-2),numpy.exp(-1)]
     C =  numpy.logspace(-3,2,11)
@@ -1154,16 +1079,21 @@ if __name__ == '__main__':
         DCF_rbfSVM[i,:] = DCF_arr
         minDCF_rbfSVM[i,:] = minDCF_arr
         i += 1
-    
+         
     plt.figure()
-    plt.plot(C, DCF_rbfSVM[0,:], label='DCF_rbfSVM, gamma = e^-4', color='#ADD8E6')
-    plt.plot(C, minDCF_rbfSVM[0,:], label='minDCF_rbfSVM, gamma = e^-4', color='#00008B')    
-    plt.plot(C, DCF_rbfSVM[1,:], label='DCF_rbfSVM, gamma = e^-3', color='#FFB6C1')
-    plt.plot(C, minDCF_rbfSVM[1,:], label='minDCF_rbfSVM, gamma = e^-3', color='#8B0000')
-    plt.plot(C, DCF_rbfSVM[2,:], label='DCF_rbfSVM, gamma = e^-2', color='#90EE90')
-    plt.plot(C, minDCF_rbfSVM[2,:], label='minDCF_rbfSVM, gamma = e^-2', color='#006400')
-    plt.plot(C, DCF_rbfSVM[3,:], label='DCF_rbfSVM, gamma = e^-1', color='#FFA500')
-    plt.plot(C, minDCF_rbfSVM[3,:], label='minDCF_rbfSVM, gamma = e^-1', color='#FF8C00')
+    plt.plot(C, DCF_rbfSVM[0, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-4}$', color='#ADD8E6')
+    plt.plot(C, minDCF_rbfSVM[0, :], label=r'minDCF_rbfSVM, $\gamma = e^{-4}$', color='#00008B')
+    plt.plot(C, DCF_rbfSVM[1, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-3}$', color='#FFB6C1')
+    plt.plot(C, minDCF_rbfSVM[1, :], label=r'minDCF_rbfSVM, $\gamma = e^{-3}$', color='#8B0000')
+    plt.plot(C, DCF_rbfSVM[2, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-2}$', color='#90EE90')
+    plt.plot(C, minDCF_rbfSVM[2, :], label=r'minDCF_rbfSVM, $\gamma = e^{-2}$', color='#006400')
+    plt.plot(C, DCF_rbfSVM[3, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-1}$', color='#FFA500')
+    plt.plot(C, minDCF_rbfSVM[3, :], label=r'minDCF_rbfSVM, $\gamma = e^{-1}$', color='#FF8C00')
     plt.legend()
     plt.xscale('log', base=10)
+    plt.xlabel('C (log scale)')
+    plt.ylabel('Actual DCF and minDCF')
+    plt.title(r'Actual DCF and minDCF vs C for different $\gamma$ values (RBF SVM)')
+    plt.grid(True)
     plt.show()
+    
