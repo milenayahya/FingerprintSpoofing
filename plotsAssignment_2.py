@@ -1,6 +1,6 @@
 import numpy
 import matplotlib.pyplot as plt
-import ProjectAssignment_1 as main
+import projectScript as main
 
 if __name__== '__main__':
 

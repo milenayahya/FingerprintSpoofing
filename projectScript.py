@@ -296,7 +296,6 @@ def min_cost(llr,thresholds,labels,pi,Cfn,Cfp):
     Pfp =[]
     for t in thresholds:
         c= numpy.where(llr<=t,0,1)
-        conf_mat = compute_conf_matrix(c,labels)
         dcf, dcf_norm, pfn,pfp = binary_dcf(c,labels,pi,Cfn,Cfp)
        
         res.append(dcf_norm)
@@ -434,14 +433,16 @@ def quadratic_features(X):
         Phi[:,i] = numpy.concatenate([product,x_i.flatten()])
     return Phi
 
-def logistic_regression_analysis(DTR, LTR, DVAL, LVAL, pi_emp=None, title="DCF_LR", label_prefix="", quadratic=False):
+def logistic_regression_analysis(DTR, LTR, DVAL, LVAL, prior=None, prior_weight=False, title="DCF_LR", label_prefix="", quadratic=False):
     if quadratic:
         DTR = quadratic_features(DTR)
         DVAL = quadratic_features(DVAL)
         
     n = LTR.shape[0]
-    if pi_emp is None:
-        pi_emp = numpy.sum(LTR == 1) / n
+    if prior_weight==False:
+        prior_scale = numpy.sum(LTR == 1) / n
+    else:
+        prior_scale= prior
     
     lambdaa = numpy.logspace(-4, 2, 13)
 
@@ -449,16 +450,19 @@ def logistic_regression_analysis(DTR, LTR, DVAL, LVAL, pi_emp=None, title="DCF_L
     minDCF_LR = []
 
     for l in lambdaa:
-        x_min, f_min, d = trainLogReg(DTR, LTR, l)
+        if prior_weight:
+            x_min, f_min, d = trainLogReg(DTR, LTR, l, prior)
+        else:
+            x_min, f_min, d = trainLogReg(DTR, LTR, l)
         w = x_min[0:-1]
         b = x_min[-1]
         # scoring the validation samples
         S = (vcol(w).T @ DVAL + b).ravel()
-        S_llr = S - numpy.log(pi_emp / (1 - pi_emp))
+        S_llr = S - numpy.log(prior_scale / (1 - prior_scale))
 
-        predicts = Bayes_Decision(S_llr, 0.1, 1, 1)
-        _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, 0.1, 1, 1)
-        minDCF, _, _ = min_cost(vcol(S_llr), vcol(numpy.sort(S_llr)), LVAL, 0.1, 1, 1)
+        predicts = Bayes_Decision(S_llr, prior, 1, 1)
+        _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, prior, 1, 1)
+        minDCF, _, _ = min_cost(vcol(S_llr), vcol(numpy.sort(S_llr)), LVAL, prior, 1, 1)
 
         DCF_LR.append(DCF)
         minDCF_LR.append(minDCF)
@@ -503,37 +507,36 @@ def rbf_kernel_scores(DTR, DVAL,alpha_opt,z, gamma,k):
             scores[i] += alpha_opt[j]*z[j]*rbf_kernel(DTR[:,j],DVAL[:,i],gamma,k)
     return scores
 
-def linear_SVM(DTR,DVAL,LTR,LVAL,k,C):
+def linear_SVM(DTR,DVAL,LTR,LVAL,k,C,prior):
         
         n = LTR.shape[0]
         nval = LVAL.shape[0]
 
         bounds = [(0,C) for _ in range(n)]
-        alpha0 = numpy.random.uniform(0,C,n) 
+       # alpha0 = numpy.random.uniform(0,C,n) 
 
         K= numpy.ones((k,n))
-        Kval = numpy.ones((k,nval))
          
         z = numpy.where(LTR==1, 1, -1)
 
         Dhat = numpy.vstack((DTR,K))
         Ghat = numpy.dot(Dhat.T,Dhat)
-    
-        Hhat = Ghat * numpy.outer(z,z)
 
+        Hhat = Ghat * vcol(z) * vrow(z)
+        alpha0 = numpy.zeros(Dhat.shape[1])
         alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(Hhat,),factr=1.0)
 
-        #what_opt = numpy.dot(Dhat, alpha_opt * z)
-        what_opt = numpy.zeros(Dhat.shape[0])
+        what_opt = (vrow(alpha_opt)*vrow(z)*Dhat).sum(1)
+        w, b = what_opt[0:DTR.shape[0]], what_opt[-1] * k
+        # #what_opt = numpy.dot(Dhat, alpha_opt * z)
+        # what_opt = numpy.zeros(Dhat.shape[0])
 
-        # Compute the optimized weight vector
-        for i in range(alpha_opt.shape[0]):
-            what_opt += alpha_opt[i] * z[i] * Dhat[:, i]
-       
-        Dval_hat = numpy.vstack((DVAL,Kval))
+        # # Compute the optimized weight vector
+        # for i in range(alpha_opt.shape[0]):
+        #     what_opt += alpha_opt[i] * z[i] * Dhat[:, i]
 
-        score = numpy.dot(what_opt.T, Dval_hat)
-        predicts = numpy.where(score>0,1,0)
+        score = (vrow(w)@DVAL + b).ravel()
+        predicts = Bayes_Decision(score,prior,1,1)
 
         accuracy = numpy.sum(LVAL==predicts)/nval
         error = 1 - accuracy
@@ -541,30 +544,30 @@ def linear_SVM(DTR,DVAL,LTR,LVAL,k,C):
         dual_sol_minimized = -obj_dual_fun(alpha_opt,Hhat)
         gap = primal_sol-dual_sol_minimized
 
-        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,0.5,1,1)
-        minDCF,_,_ = min_cost(vcol(score), vcol(numpy.sort(score)),LVAL,0.5,1,1)
+        # print("primal loss: ",primal_sol)
+        # print("dual loss: ",dual_sol_minimized,)
+        # print("duality gap: ",gap)
+        # print("error: ", error)
+
+        _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,prior,1,1)
+        minDCF,_,_ = min_cost(vcol(score), vcol(numpy.sort(score)),LVAL,prior,1,1)
+
+        # print("DCF: ", DCF)
+        # print("Min DCF: ", minDCF)
 
         return primal_sol, dual_sol_minimized, gap, error, minDCF, DCF
 
-
-def poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,C):
+def poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,C,prior):
 
     n = LTR.shape[0]
     nval = LVAL.shape[0]
     z = numpy.where(LTR==1, 1, -1)
 
     bounds = [(0,C) for _ in range(n)]
-    alpha0 = numpy.random.uniform(0,C,n) 
-    H_poly = numpy.outer(z,z)*poly_kernel(DTR,DTR,d,k,c)
+    alpha0= numpy.zeros(DTR.shape[1]) 
+    H_poly = vcol(z)*vrow(z)*poly_kernel(DTR,DTR,d,k,c)
 
     alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(H_poly,),factr=1.0)
-
-    #what_opt = numpy.dot(Dhat, alpha_opt*z)
-    what_opt = numpy.zeros(DTR.shape[0])
-
-    # Compute the optimized weight vector
-    for i in range(alpha_opt.shape[0]):
-        what_opt += alpha_opt[i] * z[i] * DTR[:, i]
 
     score = numpy.zeros(LVAL.shape[0])
 
@@ -572,60 +575,154 @@ def poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,C):
         for j in range(n):
             score[i] += alpha_opt[j]*z[j]*poly_kernel(DTR[:,j],DVAL[:,i],d,k,c)
 
-    predicts = numpy.where(score>0,1,0)
+    predicts = Bayes_Decision(score,prior,1,1)
 
     accuracy = numpy.sum(LVAL==predicts)/nval
     error = 1 - accuracy
     dual_sol_minimized = -obj_dual_fun(alpha_opt,H_poly)
 
-    _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,0.5,1,1)
-    minDCF,_,_ = min_cost(vcol(score), vcol(numpy.sort(score)),LVAL,0.5,1,1)
+    _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,prior,1,1)
+    minDCF,_,_ = min_cost(vcol(score), vcol(numpy.sort(score)),LVAL,prior,1,1)
 
     return dual_sol_minimized, error,DCF,minDCF
 
-def rbf_SVM(DTR,DVAL,LTR,LVAL,gamma,k,C):
+def rbf_SVM(DTR,DVAL,LTR,LVAL,gamma,k,C,prior):
     
     n = LTR.shape[0]
     nval = LVAL.shape[0]
     z = numpy.where(LTR==1, 1, -1)
 
     bounds = [(0,C) for _ in range(n)]
-    alpha0 = numpy.random.uniform(0,C,n) 
-    H_rbf = numpy.outer(z,z)*rbf_kernel_matrix(DTR, gamma,k)
+    alpha0= numpy.zeros(DTR.shape[1]) 
+    H_rbf = vcol(z)*vrow(z)*rbf_kernel_matrix(DTR, gamma,k)
 
     alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(H_rbf,),factr=1.0)
 
-    #what_opt = numpy.dot(Dhat, alpha_opt*z)
-    what_opt = numpy.zeros(DTR.shape[0])
+    # #what_opt = numpy.dot(Dhat, alpha_opt*z)
+    # what_opt = numpy.zeros(DTR.shape[0])
 
-    # Compute the optimized weight vector
-    for i in range(alpha_opt.shape[0]):
-        what_opt += alpha_opt[i] * z[i] * DTR[:, i]
+    # # Compute the optimized weight vector
+    # for i in range(alpha_opt.shape[0]):
+    #     what_opt += alpha_opt[i] * z[i] * DTR[:, i]
 
     scores = rbf_kernel_scores(DTR,DVAL,alpha_opt,z,gamma,k)
 
-    predicts = numpy.where(scores>0,1,0)
+    predicts = Bayes_Decision(scores,prior,1,1)
 
     accuracy = numpy.sum(LVAL==predicts)/nval
     error = 1 - accuracy
     dual_sol_minimized = -obj_dual_fun(alpha_opt,H_rbf)
 
-    _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,0.5,1,1)
-    minDCF,_,_ = min_cost(vcol(scores), vcol(numpy.sort(scores)),LVAL,0.5,1,1)
+    _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,prior,1,1)
+    minDCF,_,_ = min_cost(vcol(scores), vcol(numpy.sort(scores)),LVAL,prior,1,1)
 
     return dual_sol_minimized, error,DCF,minDCF
 
 def obj_dual_fun(alpha,Hhat):
-    return (0.5 * numpy.dot(alpha, numpy.dot(Hhat, alpha)) - numpy.sum(alpha))
+    H = Hhat @ vcol(alpha)
+    return (0.5 * (vrow(alpha)@H).ravel() - alpha.sum())
 
 def obj_primal_fun(w,C,z,D):
-    n = z.size
-    ones = numpy.ones((1,n))
-    return (0.5*numpy.linalg.norm(w)**2 + C*(numpy.maximum(0,ones-z*(numpy.dot(w.T,D)))).sum())
+    return (0.5*numpy.linalg.norm(w)**2 + C*(numpy.maximum(0,1-z*(vrow(w)@D).ravel())).sum())
 
 def gradient_fun(alpha,Hhat):
     n= alpha.size
-    return (numpy.dot(Hhat,alpha) - numpy.ones((1,n))).reshape(n,)
+    return (Hhat@vcol(alpha).ravel() - numpy.ones(n))
+
+def logpdf_GMM(X,gmm):
+        S = numpy.zeros((len(gmm),X.shape[1]))
+        
+        for g, (w, mu, C) in enumerate(gmm):
+            S[g, :] = logpdf_GAU_ND(X, mu, C) + numpy.log(w)
+
+        logdens = scipy.special.logsumexp(S,axis=0)
+        return S,logdens
+
+def EM(X,gmm, threshold, psi = None, diag=False, tied=False):
+    N = X.shape[1]
+    LL = [] #log likelihood of all trainig dataset, so sum of LL of all samples, for each step t
+
+    while True:
+
+        # E-step
+        S, logdens = logpdf_GMM(X, gmm)
+        ll= logdens.mean()# average log likelihood
+        LL.append(ll)
+
+        # stop - criterion
+        if len(LL) > 1 and numpy.abs(LL[-1] - LL[-2]) < threshold:
+            break
+
+        gamma = numpy.exp(S - logdens)
+
+        # M-step
+        gmm_new = []
+
+        for i in range(len(gmm)):
+            gamma_now = gamma[i]
+            Zg = gamma_now.sum()
+            Fg = vcol((vrow(gamma_now)*X).sum(1))
+            Sg = (vrow(gamma_now)*X) @ X.T     
+  
+            mu_new = Fg/Zg
+            C_new = Sg/Zg - mu_new @ mu_new.T
+            w_new = Zg/ N
+
+            if diag:
+                C_new = C_new*numpy.eye(X.shape[0])
+
+            gmm_new.append((w_new,mu_new,C_new))
+
+        if tied:
+            CT = 0
+            for w,mu,C in gmm_new:
+                CT += w*C
+            
+            gmm_new = [(w,mu, CT) for (w,mu,C)in gmm_new]
+
+        ## Constraining eigenvalues
+        if psi is not None:
+            for i in range(len(gmm_new)):
+                w, mu, C = gmm_new[i]
+                U, s, _ = numpy.linalg.svd(C)
+                s[s < psi] = psi
+                C = numpy.dot(U, numpy.diag(s)).dot(U.T)
+                gmm_new[i] = (w, mu, C)
+                
+            
+        
+        gmm = gmm_new
+
+
+    return gmm, LL
+
+def LBG_EM(X,threshold, nbComponents,alpha, psi=None, diag=False, tied=False):
+
+    mu, C = ML(X)
+
+    if diag:
+        C = C * numpy.eye(X.shape[0])
+
+    if psi is not None:
+        U, s, _ = numpy.linalg.svd(C) 
+        s[s<psi] = psi
+        C = numpy.dot(U, vcol(s)*U.T)
+
+    gmm = [(1.0, mu, C)]
+
+    while (len(gmm)<nbComponents):
+
+        gmm_new = []
+        for (w,mu,C) in gmm:
+            U, s, Vh = numpy.linalg.svd(C)
+            d = U[:, 0:1] * s[0]**0.5 * alpha
+            gmm_new.append((0.5*w, mu -d, C))
+            gmm_new.append((0.5*w, mu +d, C))
+
+        gmm = gmm_new
+        gmm, ll = EM(X,gmm,threshold,psi,diag,tied)
+
+    return gmm
 
 
 if __name__ == '__main__':
@@ -973,22 +1070,22 @@ if __name__ == '__main__':
     # Assignment 6: Lab 8 - Logistic Regression
 
     # Original Data
-    best_minDCF, bestDCF,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL)
+    best_minDCF, bestDCF,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL,prior=0.1)
     print("Best minDCF, actualDCF (Original Data):", best_minDCF, bestDCF)
 
     # Subset of training data
     DTR_sub = DTR[:, ::50]
     LTR_sub = LTR[::50]
-    logistic_regression_analysis(DTR_sub, LTR_sub, DVAL, LVAL, title="DCF_LR_sub", label_prefix="sub_")
+    logistic_regression_analysis(DTR_sub, LTR_sub, DVAL, LVAL,prior=0.1, title="DCF_LR_sub", label_prefix="sub_")
 
 
     # Prior-weighted LR
-    pi_prior = numpy.sum(LVAL == 1) / LVAL.shape[0]
-    best_minDCF_prior, bestDCF_prior,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, pi_emp=pi_prior, title="DCF_LR_prior", label_prefix="prior_")
+    pi_prior = 0.1
+    best_minDCF_prior, bestDCF_prior,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, prior=pi_prior,prior_weight=True, title="DCF_LR_prior", label_prefix="prior_")
     print("Best minDCF, actualDCF (Prior-weighted):", best_minDCF_prior, bestDCF_prior)
 
     # Quadratic Linear Regression
-    _,_,best_minDCF_quad, bestDCF_quad = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, title="DCF_LR_quad", label_prefix="quad_", quadratic=True)
+    _,_,best_minDCF_quad, bestDCF_quad = logistic_regression_anloalysis(DTR, LTR, DVAL, LVAL, prior=0.1,title="DCF_LR_quad", label_prefix="quad_", quadratic=True)
     print(" minDCF, actualDCF (Quadratic):", best_minDCF_quad,bestDCF_quad)
 
     # Pre-processing the data
@@ -1003,27 +1100,30 @@ if __name__ == '__main__':
     DVAL_z_norm = (DVAL - mean_TR) / numpy.sqrt(var_TR)
     DVAL_z_norm_white = A @ DVAL_z_norm
 
-    best_minDCF_preproc, bestDCF_preproc,_,_ = logistic_regression_analysis(DTR_z_norm_white, LTR, DVAL_z_norm_white, LVAL, title="DCF_LR_preproc", label_prefix="preproc_")
+    best_minDCF_preproc, bestDCF_preproc,_,_ = logistic_regression_analysis(DTR_z_norm_white, LTR, DVAL_z_norm_white, LVAL,prior=0.1, title="DCF_LR_preproc", label_prefix="preproc_")
     print("Best minDCF,actualDCF (Pre-processed):", best_minDCF_preproc, bestDCF_preproc)
 
-    '''
-
+    
+    
     ### SVM
     ## Linear SVM
 
     k=1
     C= numpy.logspace(-5,0,11)
+    prior = 0.1
 
     DCF_linearSVM = []
     minDCF_linearSVM = []
     mu = DTR.mean(1).reshape(DTR.shape[0],1)
 
     for val in C:
-        _,_,_,_,minDCF,DCF = linear_SVM(DTR,DVAL,LTR,LVAL,k,val)
+        _,_,_,_,minDCF,DCF = linear_SVM(DTR-mu,DVAL,LTR,LVAL,k,val,prior)
         DCF_linearSVM.append(DCF)
         minDCF_linearSVM.append(minDCF)
-    print("minDCF", minDCF_linearSVM)
-    print("dcf", DCF_linearSVM)
+
+
+    print("minDCF linearSVM", minDCF_linearSVM)
+    print("dcf linearSVM", DCF_linearSVM)
 
     plt.figure()
     plt.plot(C, DCF_linearSVM, label='DCF_linearSVM', color='#ADD8E6')
@@ -1032,10 +1132,11 @@ if __name__ == '__main__':
     plt.xscale('log', base=10)
     plt.show()
 
-    
 
+    
     ## Poly-SVM
 
+    prior = 0.1
     d = 2
     c = 1
     k = 0
@@ -1045,21 +1146,24 @@ if __name__ == '__main__':
     minDCF_polySVM = []
 
     for val in C:
-        _,_,DCF,minDCF = poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,val)
+        _,_,DCF,minDCF = poly_SVM(DTR,DVAL,LTR,LVAL,d,c,k,val,prior)
         DCF_polySVM.append(DCF)
         minDCF_polySVM.append(minDCF)
-    
-    print("minDCF", minDCF_polySVM)
-    print("dcf", DCF_polySVM)
+
+    print("minDCF polySVM", minDCF_polySVM)
+    print("dcf polySVM", DCF_polySVM)
     plt.figure()
     plt.plot(C, DCF_polySVM, label='DCF_polySVM', color='#ADD8E6')
     plt.plot(C, minDCF_polySVM, label='minDCF_polySVM', color='#00008B')
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
-    '''
+    
+    
+    
     ## RBF-SVM
-    '''
+    
+    prior = 0.1
     k = 1
     gamma = [numpy.exp(-4),numpy.exp(-3),numpy.exp(-2),numpy.exp(-1)]
     C =  numpy.logspace(-3,2,11)
@@ -1072,7 +1176,7 @@ if __name__ == '__main__':
         DCF_arr = []
         minDCF_arr = []
         for val in C:
-            _,_,DCF,minDCF = rbf_SVM(DTR,DVAL,LTR,LVAL,gammaa,k,val)
+            _,_,DCF,minDCF = rbf_SVM(DTR,DVAL,LTR,LVAL,gammaa,k,val,prior)
             DCF_arr.append(DCF)
             minDCF_arr.append(minDCF)
         
@@ -1083,12 +1187,34 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(C, DCF_rbfSVM[0, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-4}$', color='#ADD8E6')
     plt.plot(C, minDCF_rbfSVM[0, :], label=r'minDCF_rbfSVM, $\gamma = e^{-4}$', color='#00008B')
+    print("Gamma = e^{-4}")
+    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[0, :], minDCF_rbfSVM[0, :]):
+        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
+    print()
+
+    # Plot and print for gamma = e^{-3}
     plt.plot(C, DCF_rbfSVM[1, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-3}$', color='#FFB6C1')
     plt.plot(C, minDCF_rbfSVM[1, :], label=r'minDCF_rbfSVM, $\gamma = e^{-3}$', color='#8B0000')
+    print("Gamma = e^{-3}")
+    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[1, :], minDCF_rbfSVM[1, :]):
+        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
+    print()
+
+    # Plot and print for gamma = e^{-2}
     plt.plot(C, DCF_rbfSVM[2, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-2}$', color='#90EE90')
     plt.plot(C, minDCF_rbfSVM[2, :], label=r'minDCF_rbfSVM, $\gamma = e^{-2}$', color='#006400')
+    print("Gamma = e^{-2}")
+    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[2, :], minDCF_rbfSVM[2, :]):
+        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
+    print()
+
+    # Plot and print for gamma = e^{-1}
     plt.plot(C, DCF_rbfSVM[3, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-1}$', color='#FFA500')
     plt.plot(C, minDCF_rbfSVM[3, :], label=r'minDCF_rbfSVM, $\gamma = e^{-1}$', color='#FF8C00')
+    print("Gamma = e^{-1}")
+    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[3, :], minDCF_rbfSVM[3, :]):
+        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
+    print()
     plt.legend()
     plt.xscale('log', base=10)
     plt.xlabel('C (log scale)')
@@ -1097,3 +1223,47 @@ if __name__ == '__main__':
     plt.grid(True)
     plt.show()
     
+
+    
+    '''
+    ## GMM
+
+    alpha = 0.1
+    threshold = 10**(-6)
+    psi = 0.01
+
+    # full covarinace
+    for c in [1,2,4,8,16,32]:
+        gmm1 =LBG_EM(DTR[:,LTR==1],threshold,c,alpha,psi)
+        gmm0 =LBG_EM(DTR[:,LTR==0],threshold,c,alpha,psi)
+
+        SLLR = logpdf_GMM(DVAL,gmm1)[1] - logpdf_GMM(DVAL,gmm0)[1]
+    
+        predicts = Bayes_Decision(SLLR, 0.1, 1, 1)
+        _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, 0.1, 1, 1)
+        minDCF, _, _ = min_cost(vcol(SLLR), vcol(numpy.sort(SLLR)), LVAL, 0.1, 1, 1)
+        print('minDCF for %c components %.4f: ', c, minDCF)
+        print('actDCF for %c components %.4f: ', c, DCF)
+      
+
+    # diagonal covariance
+    for c in [1,2,4,8,16,32]:
+        gmm1 =LBG_EM(DTR[:,LTR==1],threshold,c,alpha,psi,diag=True)
+        gmm0 =LBG_EM(DTR[:,LTR==0],threshold,c,alpha,psi,diag=True)
+
+        SLLR = logpdf_GMM(DVAL,gmm1)[1] - logpdf_GMM(DVAL,gmm0)[1]
+    
+        predicts = Bayes_Decision(SLLR, 0.1, 1, 1)
+        _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, 0.1, 1, 1)
+        minDCF, _, _ = min_cost(vcol(SLLR), vcol(numpy.sort(SLLR)), LVAL, 0.1, 1, 1)
+        print('minDCF for %c components %.4f: ', c, minDCF)
+        print('actDCF for %c components %.4f: ', c, DCF)
+
+    
+
+
+    
+
+
+
+

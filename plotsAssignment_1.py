@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
-import ProjectAssignment_1 as main
+import projectScript as main
 
 if __name__ == '__main__':
 
