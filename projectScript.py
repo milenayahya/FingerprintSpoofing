@@ -616,7 +616,7 @@ def rbf_SVM(DTR,DVAL,LTR,LVAL,gamma,k,C,prior):
     _,DCF,_,_ = binary_dcf(vcol(predicts),LVAL,prior,1,1)
     minDCF,_,_ = min_cost(vcol(scores), vcol(numpy.sort(scores)),LVAL,prior,1,1)
 
-    return dual_sol_minimized, error,DCF,minDCF
+    return dual_sol_minimized, error,DCF,minDCF,scores
 
 def obj_dual_fun(alpha,Hhat):
     H = Hhat @ vcol(alpha)
@@ -724,6 +724,22 @@ def LBG_EM(X,threshold, nbComponents,alpha, psi=None, diag=False, tied=False):
 
     return gmm
 
+def bayes_error_plot_general(effPriors, scores, labels):
+    DCF = []
+    minDCF = []
+
+    for p in effPriors:
+        pi_tilde = 1/ (1 +numpy.exp(-p))
+        # mindcf
+        min,_,_ = min_cost(vcol(scores),vcol(numpy.sort(scores)),labels, pi_tilde,1,1)
+        # dcf
+        pred = Bayes_Decision(scores,pi_tilde,1,1)
+        _,actDCF,_,_ = binary_dcf(vcol(pred),labels,pi_tilde,1,1)
+
+        DCF.append(actDCF)
+        minDCF.append(min)
+    return DCF, minDCF
+
 
 if __name__ == '__main__':
 
@@ -752,13 +768,16 @@ if __name__ == '__main__':
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
-    '''
+    
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
-    print("LDA: Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
     
     # preprocessing with PCA then LDA classification
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,True,1,False)
-    print("LDA + PCA : Error, Accuracy, Correct Samples: ",error,accuracy,correct_samples)
+    
+    # Write the results to the file
+    with open('results.txt', 'w') as f:
+        f.write(f"LDA: Error, Accuracy, Correct Samples: {error}, {accuracy}, {correct_samples}\n")
+        f.write(f"LDA + PCA: Error, Accuracy, Correct Samples: {error}, {accuracy}, {correct_samples}\n")
 
     # Gaussian Models --Assignment 3
         
@@ -789,9 +808,7 @@ if __name__ == '__main__':
         ax.set_title('Feature %d' % (i + 1))
 
     plt.show()
-    '''
     
-    '''
     ## Assignment 4
 
     ## MVG
@@ -810,10 +827,10 @@ if __name__ == '__main__':
     predicts_NB, llr_scores_NB = llr(likelihoodF_NB, likelihoodT_NB,0)
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
 
-    print("MVG: Accuracy, Error: ", accuracyMVG,errorMVG)
-    print("TC: Accuracy, Error: ", accuracyTC,errorTC)
-    print("NB: Accuracy, Error: ", accuracyNB,errorNB)
-
+    with open('results.txt', 'a') as f:  
+        f.write(f"MVG: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
+        f.write(f"TC: Accuracy, Error: {accuracyTC}, {errorTC}\n")
+        f.write(f"NB: Accuracy, Error: {accuracyNB}, {errorNB}\n")
     
     #### ANALYSIS
    
@@ -821,14 +838,19 @@ if __name__ == '__main__':
     DT= DTR[:, LTR.flatten()==1]
     mF, cF = ML(DF)
     mT, cT = ML(DT)
-    # print("Covariance matrix of True class: ", cT)
-    # print("Covariance matrix of False class: ", cF)
 
     CorrT =  cT/ ( vcol(cT.diagonal()**0.5) * vrow(cT.diagonal()**0.5) )
     CorrF =  cF/ ( vcol(cF.diagonal()**0.5) * vrow(cF.diagonal()**0.5) )
 
-    # print("Correlation matrix of True class: ", CorrT)
-    # print("Correlation matrix of False class: ", CorrF)
+    with open('results.txt', 'a') as f: 
+        f.write("Covariance matrix of True class:\n")
+        f.write(f"{numpy.array(cT)}\n\n")
+        f.write("Covariance matrix of False class:\n")
+        f.write(f"{numpy.array(cF)}\n\n")
+        f.write("Correlation matrix of True class:\n")
+        f.write(f"{numpy.array(CorrT)}\n\n")
+        f.write("Correlation matrix of False class:\n")
+        f.write(f"{numpy.array(CorrF)}\n\n")
 
 
     ## Discarding the last two features, as they do not satisfy the assumption 
@@ -854,9 +876,10 @@ if __name__ == '__main__':
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
 
 
-    print("MVG 4 features: Accuracy, Error: ", accuracyMVG,errorMVG)
-    print("TC 4 features: Accuracy, Error: ", accuracyTC,errorTC)
-    print("NB 4 features: Accuracy, Error: ", accuracyNB,errorNB)
+    with open('results.txt', 'a') as f:  
+        f.write(f"MVG 4 features: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
+        f.write(f"TC 4 features: Accuracy, Error: {accuracyTC}, {errorTC}\n")
+        f.write(f"NB 4 features: Accuracy, Error: {accuracyNB}, {errorNB}\n")
 
     ## Features 1 and 2
     DTR_12_features = DTR[:3,:]
@@ -871,8 +894,9 @@ if __name__ == '__main__':
     predicts_TC,_ = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
-    print("MVG features 1 and 2: Accuracy, Error: ", accuracyMVG,errorMVG)
-    print("TC features 1 and 2: Accuracy, Error: ", accuracyTC,errorTC)
+    with open('results.txt', 'a') as f:
+        f.write(f"MVG features 1 and 2: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
+        f.write(f"TC features 1 and 2: Accuracy, Error: {accuracyTC}, {errorTC}\n")
 
     ## Features 3 and 4
     DTR_34_features = DTR[2:5,:]
@@ -887,9 +911,10 @@ if __name__ == '__main__':
     predicts_TC,_ = llr(likelihoodF_TC, likelihoodT_TC,0)
     accuracyTC, errorTC = evaluate_model(SPost, LVAL, predicts_TC,True)
 
-    print("MVG features 3 and 4: Accuracy, Error: ", accuracyMVG,errorMVG)
-    print("TC features 3 and 4: Accuracy, Error: ", accuracyTC,errorTC)
-    
+    with open('results.txt', 'a') as f:
+        f.write(f"MVG features 3 and 4: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
+        f.write(f"TC features 3 and 4: Accuracy, Error: {accuracyTC}, {errorTC}\n")
+
   
     ## Applying PCA
     m=1
@@ -913,10 +938,11 @@ if __name__ == '__main__':
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
 
 
-    print("MVG+PCA: Accuracy, Error: ", accuracyMVG,errorMVG)
-    print("TC+PCA: Accuracy, Error: ", accuracyTC,errorTC)
-    print("NB+PCA: Accuracy, Error: ", accuracyNB,errorNB)
-    
+    with open('results.txt', 'a') as f:
+        f.write(f"MVG+PCA: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
+        f.write(f"TC+PCA: Accuracy, Error: {accuracyTC}, {errorTC}\n")
+        f.write(f"NB+PCA: Accuracy, Error: {accuracyNB}, {errorNB}\n")
+        
     
     ## Assignment 5 - Lab 7
     pi_tilde1 = effective_prior(0.5,1,9)
@@ -924,141 +950,70 @@ if __name__ == '__main__':
     print(pi_tilde1,pi_tilde2)
     #stronger security (higher false positive cost) corresponds to an equivalent lower prior probability of a legit user
 
-    # now we take our decision by using Bayes Optimal Decision, not by comparing the llr with a threshold 
-    predict_MVG05 = Bayes_Decision(llr_scores_MVG, 0.5,1,1)
-    predict_MVG09 = Bayes_Decision(llr_scores_MVG, 0.9,1,1)
-    predict_MVG01 = Bayes_Decision(llr_scores_MVG, 0.1,1,1)
-
-    predict_TC05 = Bayes_Decision(llr_scores_TC, 0.5,1,1)
-    predict_TC09 = Bayes_Decision(llr_scores_TC, 0.9,1,1)
-    predict_TC01 = Bayes_Decision(llr_scores_TC, 0.1,1,1)
-
-    predict_NB05 = Bayes_Decision(llr_scores_NB, 0.5,1,1)
-    predict_NB09 = Bayes_Decision(llr_scores_NB, 0.9,1,1)
-    predict_NB01 = Bayes_Decision(llr_scores_NB, 0.1,1,1)
-
-    #with PCA:
-    predict_MVG05_PCA = Bayes_Decision(llr_scores_MVG_PCA, 0.5,1,1)
-    predict_MVG09_PCA = Bayes_Decision(llr_scores_MVG_PCA, 0.9,1,1)
-    predict_MVG01_PCA = Bayes_Decision(llr_scores_MVG_PCA, 0.1,1,1)
-
-    predict_TC05_PCA= Bayes_Decision(llr_scores_TC_PCA, 0.5,1,1)
-    predict_TC09_PCA= Bayes_Decision(llr_scores_TC_PCA, 0.9,1,1)
-    predict_TC01_PCA= Bayes_Decision(llr_scores_TC_PCA, 0.1,1,1)
-
-    predict_NB05_PCA= Bayes_Decision(llr_scores_NB_PCA, 0.5,1,1)
-    predict_NB09_PCA= Bayes_Decision(llr_scores_NB_PCA, 0.9,1,1)
-    predict_NB01_PCA= Bayes_Decision(llr_scores_NB_PCA, 0.1,1,1)
-
-    # DCF: normalized DCF returned by function binary_dcf
-    # while minDCF returned by function min_cost
     
-    _,DCF_MVG05, _, _ = binary_dcf(vcol(predict_MVG05), LVAL, 0.5,1,1)
-    _,DCF_MVG09, _, _ = binary_dcf(vcol(predict_MVG09), LVAL, 0.9,1,1)
-    _,DCF_MVG01, _, _ = binary_dcf(vcol(predict_MVG01), LVAL, 0.1,1,1)
+    thresholds = [0.5, 0.9, 0.1]
+    models = [
+        (llr_scores_MVG, llr_scores_TC, llr_scores_NB),
+        (llr_scores_MVG_PCA, llr_scores_TC_PCA, llr_scores_NB_PCA)
+    ]
 
-    _,DCF_TC05, _, _ = binary_dcf(vcol(predict_TC05), LVAL, 0.5,1,1)
-    _,DCF_TC09, _, _ = binary_dcf(vcol(predict_TC09), LVAL, 0.9,1,1)
-    _,DCF_TC01, _, _ = binary_dcf(vcol(predict_TC01), LVAL, 0.1,1,1)
+    dcfs = [[], []]
+    min_dcfs = [[], []]
 
-    _,DCF_NB05, _, _ = binary_dcf(vcol(predict_NB05), LVAL, 0.5,1,1)
-    _,DCF_NB09, _, _ = binary_dcf(vcol(predict_NB09), LVAL, 0.9,1,1)
-    _,DCF_NB01, _, _ = binary_dcf(vcol(predict_NB01), LVAL, 0.1,1,1)
+    # Loop through models and thresholds
+    for idx, (llr_MVG, llr_TC, llr_NB) in enumerate(models):
+        for threshold in thresholds:
+            # Make predictions
+            predict_MVG = Bayes_Decision(llr_MVG, threshold, 1, 1)
+            predict_TC = Bayes_Decision(llr_TC, threshold, 1, 1)
+            predict_NB = Bayes_Decision(llr_NB, threshold, 1, 1)
+            
+            # Calculate DCF and minDCF
+            _, DCF_MVG, _, _ = binary_dcf(vcol(predict_MVG), LVAL, threshold, 1, 1)
+            _, DCF_TC, _, _ = binary_dcf(vcol(predict_TC), LVAL, threshold, 1, 1)
+            _, DCF_NB, _, _ = binary_dcf(vcol(predict_NB), LVAL, threshold, 1, 1)
+            
+            minDCF_MVG, _, _ = min_cost(vcol(llr_MVG), vcol(numpy.sort(llr_MVG)), LVAL, threshold, 1, 1)
+            minDCF_TC, _, _ = min_cost(vcol(llr_TC), vcol(numpy.sort(llr_TC)), LVAL, threshold, 1, 1)
+            minDCF_NB, _, _ = min_cost(vcol(llr_NB), vcol(numpy.sort(llr_NB)), LVAL, threshold, 1, 1)
+            
+            # Append results to lists
+            dcfs[idx].extend([DCF_MVG, DCF_TC, DCF_NB])
+            min_dcfs[idx].extend([minDCF_MVG, minDCF_TC, minDCF_NB])
 
-    minDCF_MVG05,_,_ = min_cost(vcol(llr_scores_MVG),vcol(numpy.sort(llr_scores_MVG)),LVAL, 0.5,1,1)
-    minDCF_MVG09,_,_ = min_cost(vcol(llr_scores_MVG),vcol(numpy.sort(llr_scores_MVG)),LVAL, 0.9,1,1)
-    minDCF_MVG01,_,_ = min_cost(vcol(llr_scores_MVG),vcol(numpy.sort(llr_scores_MVG)),LVAL, 0.1,1,1)
+    labels_dcf = [
+        "DCF_MVG05", "DCF_MVG09", "DCF_MVG01",
+        "DCF_TC05", "DCF_TC09", "DCF_TC01",
+        "DCF_NB05", "DCF_NB09", "DCF_NB01"
+    ]
 
-    minDCF_TC05,_,_ = min_cost(vcol(llr_scores_TC),vcol(numpy.sort(llr_scores_TC)),LVAL, 0.5,1,1)
-    minDCF_TC09,_,_ = min_cost(vcol(llr_scores_TC),vcol(numpy.sort(llr_scores_TC)),LVAL, 0.9,1,1)
-    minDCF_TC01,_,_ = min_cost(vcol(llr_scores_TC),vcol(numpy.sort(llr_scores_TC)),LVAL, 0.1,1,1)
+    labels_min_dcf = [
+        "minDCF_MVG05", "minDCF_MVG09", "minDCF_MVG01",
+        "minDCF_TC05", "minDCF_TC09", "minDCF_TC01",
+        "minDCF_NB05", "minDCF_NB09", "minDCF_NB01"
+    ]
 
-    minDCF_NB05,_,_ = min_cost(vcol(llr_scores_NB),vcol(numpy.sort(llr_scores_NB)),LVAL, 0.5,1,1)
-    minDCF_NB09,_,_ = min_cost(vcol(llr_scores_NB),vcol(numpy.sort(llr_scores_NB)),LVAL, 0.9,1,1)
-    minDCF_NB01,_,_ = min_cost(vcol(llr_scores_NB),vcol(numpy.sort(llr_scores_NB)),LVAL, 0.1,1,1)
+    # Write results to file
+    with open('results.txt', 'a') as f:
+        # DCF Values
+        f.write("DCF Values:\n")
+        for label, value in zip(labels_dcf, dcfs[0]):
+            f.write(f"{label}: {value}\n")
 
-    _,DCF_MVG05_PCA, _, _ = binary_dcf(vcol(predict_MVG05_PCA), LVAL, 0.5,1,1)
-    _,DCF_MVG09_PCA, _, _ = binary_dcf(vcol(predict_MVG09_PCA), LVAL, 0.9,1,1)
-    _,DCF_MVG01_PCA, _, _ = binary_dcf(vcol(predict_MVG01_PCA), LVAL, 0.1,1,1)
+        # minDCF Values
+        f.write("\nminDCF Values:\n")
+        for label, value in zip(labels_min_dcf, min_dcfs[0]):
+            f.write(f"{label}: {value}\n")
 
-    _,DCF_TC05_PCA, _, _ = binary_dcf(vcol(predict_TC05_PCA), LVAL, 0.5,1,1)
-    _,DCF_TC09_PCA, _, _ = binary_dcf(vcol(predict_TC09_PCA), LVAL, 0.9,1,1)
-    _,DCF_TC01_PCA, _, _ = binary_dcf(vcol(predict_TC01_PCA), LVAL, 0.1,1,1)
+        # DCF Values with PCA
+        f.write("\nDCF Values with PCA:\n")
+        for label, value in zip(labels_dcf, dcfs[1]):
+            f.write(f"{label}: {value}\n")
 
-    _,DCF_NB05_PCA, _, _ = binary_dcf(vcol(predict_NB05_PCA), LVAL, 0.5,1,1)
-    _,DCF_NB09_PCA, _, _ = binary_dcf(vcol(predict_NB09_PCA), LVAL, 0.9,1,1)
-    _,DCF_NB01_PCA, _, _ = binary_dcf(vcol(predict_NB01_PCA), LVAL, 0.1,1,1)
-
-    minDCF_MVG05_PCA,_,_ = min_cost(vcol(llr_scores_MVG_PCA),vcol(numpy.sort(llr_scores_MVG_PCA)),LVAL, 0.5,1,1)
-    minDCF_MVG09_PCA,_,_ = min_cost(vcol(llr_scores_MVG_PCA),vcol(numpy.sort(llr_scores_MVG_PCA)),LVAL, 0.9,1,1)
-    minDCF_MVG01_PCA,_,_ = min_cost(vcol(llr_scores_MVG_PCA),vcol(numpy.sort(llr_scores_MVG_PCA)),LVAL, 0.1,1,1)
-
-    minDCF_TC05_PCA,_,_ = min_cost(vcol(llr_scores_TC_PCA),vcol(numpy.sort(llr_scores_TC_PCA)),LVAL, 0.5,1,1)
-    minDCF_TC09_PCA,_,_ = min_cost(vcol(llr_scores_TC_PCA),vcol(numpy.sort(llr_scores_TC_PCA)),LVAL, 0.9,1,1)
-    minDCF_TC01_PCA,_,_ = min_cost(vcol(llr_scores_TC_PCA),vcol(numpy.sort(llr_scores_TC_PCA)),LVAL, 0.1,1,1)
-
-    minDCF_NB05_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.5,1,1)
-    minDCF_NB09_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.9,1,1)
-    minDCF_NB01_PCA,_,_ = min_cost(vcol(llr_scores_NB_PCA),vcol(numpy.sort(llr_scores_NB_PCA)),LVAL, 0.1,1,1)
-
-
-    # Printing DCF values
-    print("DCF Values:")
-    print(f"DCF_MVG05: {DCF_MVG05}")
-    print(f"DCF_MVG09: {DCF_MVG09}")
-    print(f"DCF_MVG01: {DCF_MVG01}")
-
-    print(f"DCF_TC05: {DCF_TC05}")
-    print(f"DCF_TC09: {DCF_TC09}")
-    print(f"DCF_TC01: {DCF_TC01}")
-
-    print(f"DCF_NB05: {DCF_NB05}")
-    print(f"DCF_NB09: {DCF_NB09}")
-    print(f"DCF_NB01: {DCF_NB01}")
-
-    # Printing minDCF values
-    print("\nminDCF Values:")
-    print(f"minDCF_MVG05: {minDCF_MVG05}")
-    print(f"minDCF_MVG09: {minDCF_MVG09}")
-    print(f"minDCF_MVG01: {minDCF_MVG01}")
-
-    print(f"minDCF_TC05: {minDCF_TC05}")
-    print(f"minDCF_TC09: {minDCF_TC09}")
-    print(f"minDCF_TC01: {minDCF_TC01}")
-
-    print(f"minDCF_NB05: {minDCF_NB05}")
-    print(f"minDCF_NB09: {minDCF_NB09}")
-    print(f"minDCF_NB01: {minDCF_NB01}")
-
-
-    # Printing DCF values with PCA
-    print("\nDCF Values with PCA:")
-    print(f"DCF_MVG05_PCA: {DCF_MVG05_PCA}")
-    print(f"DCF_MVG09_PCA: {DCF_MVG09_PCA}")
-    print(f"DCF_MVG01_PCA: {DCF_MVG01_PCA}")
-
-    print(f"DCF_TC05_PCA: {DCF_TC05_PCA}")
-    print(f"DCF_TC09_PCA: {DCF_TC09_PCA}")
-    print(f"DCF_TC01_PCA: {DCF_TC01_PCA}")
-
-    print(f"DCF_NB05_PCA: {DCF_NB05_PCA}")
-    print(f"DCF_NB09_PCA: {DCF_NB09_PCA}")
-    print(f"DCF_NB01_PCA: {DCF_NB01_PCA}")
-
-    # Printing minDCF values with PCA
-    print("\nminDCF Values with PCA:")
-    print(f"minDCF_MVG05_PCA: {minDCF_MVG05_PCA}")
-    print(f"minDCF_MVG09_PCA: {minDCF_MVG09_PCA}")
-    print(f"minDCF_MVG01_PCA: {minDCF_MVG01_PCA}")
-
-    print(f"minDCF_TC05_PCA: {minDCF_TC05_PCA}")
-    print(f"minDCF_TC09_PCA: {minDCF_TC09_PCA}")
-    print(f"minDCF_TC01_PCA: {minDCF_TC01_PCA}")
-
-    print(f"minDCF_NB05_PCA: {minDCF_NB05_PCA}")
-    print(f"minDCF_NB09_PCA: {minDCF_NB09_PCA}")
-    print(f"minDCF_NB01_PCA: {minDCF_NB01_PCA}")
-
+        # minDCF Values with PCA
+        f.write("\nminDCF Values with PCA:\n")
+        for label, value in zip(labels_min_dcf, min_dcfs[1]):
+            f.write(f"{label}: {value}\n")
     # The best PCA setup for pi-tilde = 0.1 is no PCA
 
     # Bayes error plots:
@@ -1071,7 +1026,8 @@ if __name__ == '__main__':
 
     # Original Data
     best_minDCF, bestDCF,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL,prior=0.1)
-    print("Best minDCF, actualDCF (Original Data):", best_minDCF, bestDCF)
+    with open('results.txt', 'a') as f:
+        f.write(f"LR - original data: Best minDCF, actualDCF (Original Data): {best_minDCF}, {bestDCF}\n")
 
     # Subset of training data
     DTR_sub = DTR[:, ::50]
@@ -1082,11 +1038,15 @@ if __name__ == '__main__':
     # Prior-weighted LR
     pi_prior = 0.1
     best_minDCF_prior, bestDCF_prior,_,_ = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, prior=pi_prior,prior_weight=True, title="DCF_LR_prior", label_prefix="prior_")
-    print("Best minDCF, actualDCF (Prior-weighted):", best_minDCF_prior, bestDCF_prior)
+    with open('results.txt', 'a') as f:
+        f.write(f"LR - prior-weighted: Best minDCF, actualDCF (Original Data): {best_minDCF}, {bestDCF}\n")
+
 
     # Quadratic Linear Regression
-    _,_,best_minDCF_quad, bestDCF_quad = logistic_regression_anloalysis(DTR, LTR, DVAL, LVAL, prior=0.1,title="DCF_LR_quad", label_prefix="quad_", quadratic=True)
-    print(" minDCF, actualDCF (Quadratic):", best_minDCF_quad,bestDCF_quad)
+    _,_,best_minDCF_quad, bestDCF_quad = logistic_regression_analysis(DTR, LTR, DVAL, LVAL, prior=0.1,title="DCF_LR_quad", label_prefix="quad_", quadratic=True)
+    with open('results.txt', 'a') as f:
+        f.write(f"LR - quadratic: Best minDCF, actualDCF (Original Data): {best_minDCF}, {bestDCF}\n")
+
 
     # Pre-processing the data
     mean_TR, cov_TR = ML(DTR)
@@ -1101,9 +1061,9 @@ if __name__ == '__main__':
     DVAL_z_norm_white = A @ DVAL_z_norm
 
     best_minDCF_preproc, bestDCF_preproc,_,_ = logistic_regression_analysis(DTR_z_norm_white, LTR, DVAL_z_norm_white, LVAL,prior=0.1, title="DCF_LR_preproc", label_prefix="preproc_")
-    print("Best minDCF,actualDCF (Pre-processed):", best_minDCF_preproc, bestDCF_preproc)
+    with open('results.txt', 'a') as f:
+        f.write(f"LR - pre-processed data: Best minDCF, actualDCF (Original Data): {best_minDCF}, {bestDCF}\n")
 
-    
     
     ### SVM
     ## Linear SVM
@@ -1122,8 +1082,9 @@ if __name__ == '__main__':
         minDCF_linearSVM.append(minDCF)
 
 
-    print("minDCF linearSVM", minDCF_linearSVM)
-    print("dcf linearSVM", DCF_linearSVM)
+    with open('results.txt', 'a') as f:
+        f.write(f"minDCF linearSVM: {minDCF_linearSVM}\n")
+        f.write(f"dcf linearSVM: {DCF_linearSVM}\n")
 
     plt.figure()
     plt.plot(C, DCF_linearSVM, label='DCF_linearSVM', color='#ADD8E6')
@@ -1150,8 +1111,10 @@ if __name__ == '__main__':
         DCF_polySVM.append(DCF)
         minDCF_polySVM.append(minDCF)
 
-    print("minDCF polySVM", minDCF_polySVM)
-    print("dcf polySVM", DCF_polySVM)
+    with open('results.txt', 'a') as f:
+        f.write(f"minDCF polySVM: {minDCF_polySVM}\n")
+        f.write(f"dcf polySVM: {DCF_polySVM}\n")
+
     plt.figure()
     plt.plot(C, DCF_polySVM, label='DCF_polySVM', color='#ADD8E6')
     plt.plot(C, minDCF_polySVM, label='minDCF_polySVM', color='#00008B')
@@ -1159,7 +1122,7 @@ if __name__ == '__main__':
     plt.xscale('log', base=10)
     plt.show()
     
-    
+    '''
     
     ## RBF-SVM
     
@@ -1176,7 +1139,7 @@ if __name__ == '__main__':
         DCF_arr = []
         minDCF_arr = []
         for val in C:
-            _,_,DCF,minDCF = rbf_SVM(DTR,DVAL,LTR,LVAL,gammaa,k,val,prior)
+            _,_,DCF,minDCF,_ = rbf_SVM(DTR,DVAL,LTR,LVAL,gammaa,k,val,prior)
             DCF_arr.append(DCF)
             minDCF_arr.append(minDCF)
         
@@ -1225,7 +1188,7 @@ if __name__ == '__main__':
     
 
     
-    '''
+    
     ## GMM
 
     alpha = 0.1
@@ -1260,10 +1223,50 @@ if __name__ == '__main__':
         print('actDCF for %c components %.4f: ', c, DCF)
 
     
+    # Bayes error plots
+    # best models:
+
+    #best gmm
+    gmm1 =LBG_EM(DTR[:,LTR==1],10**(-6),8,0.1,0.01,diag=True)
+    gmm0 =LBG_EM(DTR[:,LTR==0],10**(-6),8,0.1,0.01,diag=True)
+    gmm_best_scores = logpdf_GMM(DVAL,gmm1)[1] - logpdf_GMM(DVAL,gmm0)[1]
+
+    #best svm
+    _,_,_,_,svm_rbf_best_scores = rbf_SVM(DTR,DVAL,LTR,LVAL,numpy.exp(-2),1,10**1.5,0.1)
 
 
-    
+    # best LR
+    DTR_quad, DVAL_quad = quadratic_features(DTR), quadratic_features(DVAL)
+    x_min, f_min, d = trainLogReg(DTR_quad, LTR, 10**(-2.5))
+    w,b = x_min[0:-1], x_min[-1]
+    prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
+    S = (vcol(w).T @ DVAL_quad + b).ravel()
+    lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
 
+    priors = numpy.linspace(-4, 4, 40)
+    dcf_gmm, minDCF_gmm = bayes_error_plot_general(priors, gmm_best_scores,LVAL)
+    dcf_svm, minDCF_svm = bayes_error_plot_general(priors, svm_rbf_best_scores,LVAL)
+    dcf_LR, minDCF_LR = bayes_error_plot_general(priors, lr_quad_best_scores,LVAL)
 
+    with open('results.txt', 'w') as f:
+        f.write(f"DCF GMM: {dcf_gmm}\n")
+        f.write(f"minDCF GMM: {minDCF_gmm}\n")
+        f.write(f"DCF SVM: {dcf_svm}\n")
+        f.write(f"minDCF SVM: {minDCF_svm}\n")
+        f.write(f"DCF LR: {dcf_LR}\n")
+        f.write(f"minDCF LR: {minDCF_LR}\n")
 
+    print("Results have been saved to results.txt")
 
+    plt.figure()
+    plt.plot(priors, dcf_gmm, label='dcf_gmm', color='#ADD8E6')
+    plt.plot(priors, minDCF_gmm, label='minDCF_gmm', color='#00008B')
+    plt.plot(priors, dcf_svm, label='dcf_svm', color='#FFB6C1')
+    plt.plot(priors, minDCF_svm, label='minDCF_svm', color='#8B0000')
+    plt.plot(priors, dcf_LR, label='DCF_LR', color='#90EE90')
+    plt.plot(priors, minDCF_LR, label='minDCF_LR', color='#006400')
+    plt.xlim([-4,4])
+    plt.legend()
+    plt.show()
+
+    '''
