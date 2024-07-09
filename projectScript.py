@@ -768,7 +768,7 @@ if __name__ == '__main__':
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
-    '''
+    
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     
     # preprocessing with PCA then LDA classification
@@ -1147,38 +1147,43 @@ if __name__ == '__main__':
         minDCF_rbfSVM[i,:] = minDCF_arr
         i += 1
          
-    plt.figure()
-    plt.plot(C, DCF_rbfSVM[0, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-4}$', color='#ADD8E6')
-    plt.plot(C, minDCF_rbfSVM[0, :], label=r'minDCF_rbfSVM, $\gamma = e^{-4}$', color='#00008B')
-    print("Gamma = e^{-4}")
-    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[0, :], minDCF_rbfSVM[0, :]):
-        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
-    print()
+    with open("results.txt", "a") as f:
+        plt.figure()
 
-    # Plot and print for gamma = e^{-3}
-    plt.plot(C, DCF_rbfSVM[1, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-3}$', color='#FFB6C1')
-    plt.plot(C, minDCF_rbfSVM[1, :], label=r'minDCF_rbfSVM, $\gamma = e^{-3}$', color='#8B0000')
-    print("Gamma = e^{-3}")
-    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[1, :], minDCF_rbfSVM[1, :]):
-        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
-    print()
+        # Plot and write for gamma = e^{-4}
+        plt.plot(C, DCF_rbfSVM[0, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-4}$', color='#ADD8E6')
+        plt.plot(C, minDCF_rbfSVM[0, :], label=r'minDCF_rbfSVM, $\gamma = e^{-4}$', color='#00008B')
+        f.write("Gamma = e^{-4}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[0, :], minDCF_rbfSVM[0, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
 
-    # Plot and print for gamma = e^{-2}
-    plt.plot(C, DCF_rbfSVM[2, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-2}$', color='#90EE90')
-    plt.plot(C, minDCF_rbfSVM[2, :], label=r'minDCF_rbfSVM, $\gamma = e^{-2}$', color='#006400')
-    print("Gamma = e^{-2}")
-    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[2, :], minDCF_rbfSVM[2, :]):
-        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
-    print()
+        # Plot and write for gamma = e^{-3}
+        plt.plot(C, DCF_rbfSVM[1, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-3}$', color='#FFB6C1')
+        plt.plot(C, minDCF_rbfSVM[1, :], label=r'minDCF_rbfSVM, $\gamma = e^{-3}$', color='#8B0000')
+        f.write("Gamma = e^{-3}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[1, :], minDCF_rbfSVM[1, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
 
-    # Plot and print for gamma = e^{-1}
-    plt.plot(C, DCF_rbfSVM[3, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-1}$', color='#FFA500')
-    plt.plot(C, minDCF_rbfSVM[3, :], label=r'minDCF_rbfSVM, $\gamma = e^{-1}$', color='#FF8C00')
-    print("Gamma = e^{-1}")
-    for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[3, :], minDCF_rbfSVM[3, :]):
-        print(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}")
-    print()
+        # Plot and write for gamma = e^{-2}
+        plt.plot(C, DCF_rbfSVM[2, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-2}$', color='#90EE90')
+        plt.plot(C, minDCF_rbfSVM[2, :], label=r'minDCF_rbfSVM, $\gamma = e^{-2}$', color='#006400')
+        f.write("Gamma = e^{-2}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[2, :], minDCF_rbfSVM[2, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
+
+        # Plot and write for gamma = e^{-1}
+        plt.plot(C, DCF_rbfSVM[3, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-1}$', color='#FFA500')
+        plt.plot(C, minDCF_rbfSVM[3, :], label=r'minDCF_rbfSVM, $\gamma = e^{-1}$', color='#FF8C00')
+        f.write("Gamma = e^{-1}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[3, :], minDCF_rbfSVM[3, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
+
     plt.legend()
+    plt.show()
     plt.xscale('log', base=10)
     plt.xlabel('C (log scale)')
     plt.ylabel('Actual DCF and minDCF')
@@ -1186,11 +1191,7 @@ if __name__ == '__main__':
     plt.grid(True)
     plt.show()
     
-
-    
-    
     ## GMM
-
     alpha = 0.1
     threshold = 10**(-6)
     psi = 0.01
@@ -1205,9 +1206,9 @@ if __name__ == '__main__':
         predicts = Bayes_Decision(SLLR, 0.1, 1, 1)
         _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, 0.1, 1, 1)
         minDCF, _, _ = min_cost(vcol(SLLR), vcol(numpy.sort(SLLR)), LVAL, 0.1, 1, 1)
-        print('minDCF for %c components %.4f: ', c, minDCF)
-        print('actDCF for %c components %.4f: ', c, DCF)
-      
+        with open("results.txt", "a") as file:
+            file.write(f'GMM full - minDCF for {c} components: {minDCF:.4f}\n')
+            file.write(f'GMM full - actDCF for {c} components: {DCF:.4f}\n')
 
     # diagonal covariance
     for c in [1,2,4,8,16,32]:
@@ -1219,10 +1220,11 @@ if __name__ == '__main__':
         predicts = Bayes_Decision(SLLR, 0.1, 1, 1)
         _, DCF, _, _ = binary_dcf(vcol(predicts), LVAL, 0.1, 1, 1)
         minDCF, _, _ = min_cost(vcol(SLLR), vcol(numpy.sort(SLLR)), LVAL, 0.1, 1, 1)
-        print('minDCF for %c components %.4f: ', c, minDCF)
-        print('actDCF for %c components %.4f: ', c, DCF)
+        with open("results.txt", "a") as file:
+            file.write(f'GMM diagonal - minDCF for {c} components: {minDCF:.4f}\n')
+            file.write(f'GMM diagonal - actDCF for {c} components: {DCF:.4f}\n')
 
-    '''
+    
 
     # Bayes error plots
     # best models:
