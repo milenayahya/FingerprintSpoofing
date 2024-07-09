@@ -88,14 +88,14 @@ def computeStats(features_classT, featuresClassF):
     mu_classT = features_classT.mean(1).reshape(features_classT.shape[0],1)
     print("mean true class: ", mu_classT)
 
-    mu_classF = features_classF.mean(1).reshape(features_classF.shape[0],1)
+    mu_classF = featuresClassF.mean(1).reshape(featuresClassF.shape[0],1)
     print("mean false class: ", mu_classF)
 
     var_classT = features_classT.var(1)
-    var_classF = features_classF.var(1)
+    var_classF = featuresClassF.var(1)
 
     std_classT = features_classT.std(1)
-    std_classF = features_classF.std(1)
+    std_classF = featuresClassF.std(1)
 
     print("variance true class: ", var_classT)
     print("variance false class: ", var_classF)
@@ -782,7 +782,6 @@ if __name__ == '__main__':
     # Gaussian Models --Assignment 3
         
     fig, axes = plt.subplots(2,3, figsize=(18,12))
-    fig.tight_layout(pad=5.0)
 
     for i in range(features.shape[0]):
         featuresT = features[i, labels.flatten() == 1].reshape(1, sum(labels.flatten() == 1))
@@ -794,7 +793,7 @@ if __name__ == '__main__':
         logNxT = logpdf_GAU_ND(featuresT, meanT, covT)
         logNxF = logpdf_GAU_ND(featuresF, meanF, covF)
 
-        ax = axes[i]
+        ax = axes[i // 3, i % 3]
         ax.hist(featuresT.flatten(), bins=20, alpha=0.5, label='Genuine Fingerprint', color=color_genuine, density=True)
         ax.hist(featuresF.flatten(), bins=20, alpha=0.5, label='Fake Fingerprint', color=color_fake, density=True)
         
@@ -807,6 +806,7 @@ if __name__ == '__main__':
         ax.legend()
         ax.set_title('Feature %d' % (i + 1))
 
+    fig.tight_layout(pad=5.0)
     plt.show()
     
     ## Assignment 4
@@ -1094,7 +1094,7 @@ if __name__ == '__main__':
     plt.show()
 
 
-    
+    '''
     ## Poly-SVM
 
     prior = 0.1
@@ -1122,7 +1122,7 @@ if __name__ == '__main__':
     plt.xscale('log', base=10)
     plt.show()
     
-    '''
+    
     
     ## RBF-SVM
     
