@@ -1,7 +1,7 @@
 import numpy
 import matplotlib.pyplot as plt
 import scipy.linalg
-import sklearn
+
 
 features = numpy.array([])
 labels = numpy.array([])
@@ -768,7 +768,7 @@ if __name__ == '__main__':
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
-    
+    '''
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     
     # preprocessing with PCA then LDA classification
@@ -1094,7 +1094,7 @@ if __name__ == '__main__':
     plt.show()
 
 
-    '''
+    
     ## Poly-SVM
 
     prior = 0.1
@@ -1222,7 +1222,8 @@ if __name__ == '__main__':
         print('minDCF for %c components %.4f: ', c, minDCF)
         print('actDCF for %c components %.4f: ', c, DCF)
 
-    
+    '''
+
     # Bayes error plots
     # best models:
 
@@ -1248,15 +1249,13 @@ if __name__ == '__main__':
     dcf_svm, minDCF_svm = bayes_error_plot_general(priors, svm_rbf_best_scores,LVAL)
     dcf_LR, minDCF_LR = bayes_error_plot_general(priors, lr_quad_best_scores,LVAL)
 
-    with open('results.txt', 'w') as f:
+    with open('results.txt', 'a') as f:
         f.write(f"DCF GMM: {dcf_gmm}\n")
         f.write(f"minDCF GMM: {minDCF_gmm}\n")
         f.write(f"DCF SVM: {dcf_svm}\n")
         f.write(f"minDCF SVM: {minDCF_svm}\n")
         f.write(f"DCF LR: {dcf_LR}\n")
         f.write(f"minDCF LR: {minDCF_LR}\n")
-
-    print("Results have been saved to results.txt")
 
     plt.figure()
     plt.plot(priors, dcf_gmm, label='dcf_gmm', color='#ADD8E6')
@@ -1269,4 +1268,3 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
 
-    '''
