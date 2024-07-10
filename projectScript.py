@@ -1303,7 +1303,7 @@ if __name__ == '__main__':
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     S = (vcol(w).T @ DVAL_quad + b).ravel()
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
-
+    '''
     priors = numpy.linspace(-4, 4, 40)
     dcf_gmm, minDCF_gmm = bayes_error_plot_general(priors, gmm_best_scores,LVAL)
     dcf_svm, minDCF_svm = bayes_error_plot_general(priors, svm_rbf_best_scores,LVAL)
@@ -1327,17 +1327,17 @@ if __name__ == '__main__':
     plt.xlim([-4,4])
     plt.legend()
     plt.show()
-
+    '''
     # K-FOLD calibration
     k = 10
-
+    priors = numpy.linspace(0.01,0.99,20)
     dcf_gmm = []
     dcf_svm = []
     dcf_lr =[]
     for p in priors:
-        calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,LVAL, p)
-        calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,LVAL,p)
-        calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,LVAL,p)
+        calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,LVAL, p,k)
+        calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,LVAL,p,k)
+        calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,LVAL,p,k)
 
         # evaluate on the target application
         dcf_gmm.append(dcf_packed(vrow(calibrated_scores_gmm),labels_gmm,0.1,1,1))
@@ -1372,9 +1372,10 @@ if __name__ == '__main__':
     # Bayes Error Plot using best calibrated scores 
 
     # Best Models:
-    calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,LVAL, prior_training_gmm)
-    calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,LVAL,prior_training_svm)
-    calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,LVAL,prior_training_lr)
+    calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,LVAL, prior_training_gmm,k)
+    calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,LVAL,prior_training_svm,k)
+    calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,LVAL,prior_training_lr,k)
+    priors = numpy.linspace(-4,4,40)
     dcf_gmm, minDCF_gmm = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
     dcf_svm, minDCF_svm = bayes_error_plot_general(priors, calibrated_scores_svm,labels_svm)
     dcf_LR, minDCF_LR = bayes_error_plot_general(priors, calibrated_scores_lr,labels_lr)
@@ -1402,6 +1403,7 @@ if __name__ == '__main__':
 
     # FUSION
     dcf = []
+    priors = numpy.linspace(0.01,0.99,20)
     for p in priors:
         fused_scores, fused_labels = Kfold_fusion(gmm_best_scores, svm_rbf_best_scores, lr_quad_best_scores, LVAL, p, k)
         dcf.append(dcf_packed(fused_scores, fused_labels, 0.1,1,1))
