@@ -766,6 +766,10 @@ def Kfold(scores, labels, prior, k):
         x_min, f_min, d = trainLogReg(vrow(SCAL), LCAL,0, prior)
         w = x_min[0:-1]
         b = x_min[-1]
+
+        print(f"Prior: {prior}, Epsilon: {epsilon}")
+        print(f"Log term: {numpy.log((prior + epsilon) / (1 - prior + epsilon))}")
+
         calibrated_SVAL = (w.T @ vrow(SVAL) + b - numpy.log(prior / (1-prior+epsilon))).ravel()
         calibrated_scores.append(calibrated_SVAL)
         labels_sys.append(LVAL)
@@ -790,6 +794,10 @@ def Kfold_fusion(scores1, scores2, scores3, labels, prior, k):
         w = x_min[0:-1]
         b = x_min[-1]
         SVAL = numpy.vstack([vrow(SVAL1), vrow(SVAL2), vrow(SVAL3)])
+
+        print(f"Prior: {prior}, Epsilon: {epsilon}")
+        print(f"Log term: {numpy.log((prior + epsilon) / (1 - prior + epsilon))}")
+        
         calibrated_SVAL = (w.T @ SVAL + b - numpy.log(prior / (1-prior + epsilon))).ravel()
         fused_scores.append(calibrated_SVAL)
         fused_labels.append(LVAL)
