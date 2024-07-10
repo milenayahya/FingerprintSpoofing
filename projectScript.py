@@ -758,6 +758,7 @@ def extract_folds(X, idx, KFold):
 def Kfold(scores, labels, prior, k):
     calibrated_scores = []
     labels_sys = []
+    epsilon = 1e-15
 
     for fold in range(k):
         SCAL, SVAL = extract_folds(scores,fold,k)
@@ -765,7 +766,7 @@ def Kfold(scores, labels, prior, k):
         x_min, f_min, d = trainLogReg(vrow(SCAL), LCAL,0, prior)
         w = x_min[0:-1]
         b = x_min[-1]
-        calibrated_SVAL = (w.T @ vrow(SVAL) + b - numpy.log(prior / (1-prior))).ravel()
+        calibrated_SVAL = (w.T @ vrow(SVAL) + b - numpy.log(prior / (1-prior+epsilon))).ravel()
         calibrated_scores.append(calibrated_SVAL)
         labels_sys.append(LVAL)
 
@@ -777,6 +778,7 @@ def Kfold(scores, labels, prior, k):
 def Kfold_fusion(scores1, scores2, scores3, labels, prior, k):
     fused_scores =[]
     fused_labels =[]
+    epsilon = 1e-15
     for fold in range(k):
         SCAL1, SVAL1 = extract_folds(scores1,fold,k)
         SCAL2, SVAL2 = extract_folds(scores2,fold,k)
@@ -788,7 +790,7 @@ def Kfold_fusion(scores1, scores2, scores3, labels, prior, k):
         w = x_min[0:-1]
         b = x_min[-1]
         SVAL = numpy.vstack([vrow(SVAL1), vrow(SVAL2), vrow(SVAL3)])
-        calibrated_SVAL = (w.T @ SVAL + b - numpy.log(prior / (1-prior))).ravel()
+        calibrated_SVAL = (w.T @ SVAL + b - numpy.log(prior / (1-prior + epsilon))).ravel()
         fused_scores.append(calibrated_SVAL)
         fused_labels.append(LVAL)
 
