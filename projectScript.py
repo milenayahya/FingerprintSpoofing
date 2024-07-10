@@ -797,7 +797,7 @@ def Kfold_fusion(scores1, scores2, scores3, labels, prior, k):
 
         print(f"Prior: {prior}, Epsilon: {epsilon}")
         print(f"Log term: {numpy.log((prior + epsilon) / (1 - prior + epsilon))}")
-        
+
         calibrated_SVAL = (w.T @ SVAL + b - numpy.log(prior / (1-prior + epsilon))).ravel()
         fused_scores.append(calibrated_SVAL)
         fused_labels.append(LVAL)
@@ -835,6 +835,7 @@ if __name__ == '__main__':
 
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
+    
     '''
     
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
@@ -1292,8 +1293,8 @@ if __name__ == '__main__':
             file.write(f'GMM diagonal - minDCF for {c} components: {minDCF:.4f}\n')
             file.write(f'GMM diagonal - actDCF for {c} components: {DCF:.4f}\n')
 
-    
     '''
+    
     # Bayes error plots
     # best models:
 
@@ -1340,7 +1341,7 @@ if __name__ == '__main__':
     '''
     # K-FOLD calibration
     k = 10
-    priors = numpy.linspace(0.01,0.99,20)
+    priors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     dcf_gmm = []
     dcf_svm = []
     dcf_lr =[]
@@ -1413,7 +1414,7 @@ if __name__ == '__main__':
 
     # FUSION
     dcf = []
-    priors = numpy.linspace(0.01,0.99,20)
+    priors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     for p in priors:
         fused_scores, fused_labels = Kfold_fusion(gmm_best_scores, svm_rbf_best_scores, lr_quad_best_scores, LVAL, p, k)
         dcf.append(dcf_packed(fused_scores, fused_labels, 0.1,1,1))
@@ -1429,3 +1430,7 @@ if __name__ == '__main__':
         f.write(f"DCF calibrated fused scores model : {best_dcf}\n")
         f.write(f"minDCF calibrated fused scores model: {min_dcf}\n")
        
+    
+    priors = numpy.linspace(0.01,0.99,20)
+    for p in priors:
+        print(p)
