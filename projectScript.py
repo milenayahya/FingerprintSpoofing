@@ -1297,8 +1297,8 @@ if __name__ == '__main__':
             file.write(f'GMM diagonal - minDCF for {c} components: {minDCF:.4f}\n')
             file.write(f'GMM diagonal - actDCF for {c} components: {DCF:.4f}\n')
 
-    
     '''
+    
     # Bayes error plots
     # best models:
 
@@ -1319,11 +1319,11 @@ if __name__ == '__main__':
     S = (vcol(w).T @ DVAL_quad + b).ravel()
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
     
-    with open("results.txt", "a") as f:
+    with open("result.txt", "w") as f:
         f.write("The best 3 models:\n")
         f.write(f"GMM_best scores: {gmm_best_scores}\n")
         f.write(f"SVM_best scores: {svm_rbf_best_scores}\n")
-        f.write(f"LR_best scores: {lr}\n")
+        f.write(f"LR_best scores: {lr_quad_best_scores}\n")
     '''
     priors = numpy.linspace(-4, 4, 40)
     dcf_gmm, minDCF_gmm = bayes_error_plot_general(priors, gmm_best_scores,LVAL)
@@ -1381,7 +1381,8 @@ if __name__ == '__main__':
     minDCF_lr = minDCF_packed(calibrated_scores_lr,labels_lr,0.1,1,1)
 
     # to check calibration
-    with open('results.txt', 'a') as f:
+    with open('result.txt', 'a') as f:
+        print('writing to file')
         f.write(f"Best prior for training the GMM calibrated model: {prior_training_gmm}\n")
         f.write(f"Best prior for training the SVM calibrated model: {prior_training_svm}\n")
         f.write(f"Best prior for training the LR calibrated model: {prior_training_lr}\n")
@@ -1404,7 +1405,7 @@ if __name__ == '__main__':
     dcf_LR, minDCF_LR = bayes_error_plot_general(priors, calibrated_scores_lr,labels_lr)
 
         
-    with open('results.txt', 'a') as f:
+    with open('result.txt', 'a') as f:
         f.write(f"DCF calibrated GMM over a range of application priors: {dcf_gmm}\n")
         f.write(f"minDCF calibrated GMM over a range of application priors: {minDCF_gmm}\n")
         f.write(f"DCF calibrated SVM over a range of application priors: {dcf_svm}\n")
@@ -1437,7 +1438,7 @@ if __name__ == '__main__':
     best_dcf = min(dcf)
     min_dcf = minDCF_packed(fused_scores,fused_labels,0.1,1,1)
 
-    with open('results.txt', 'a') as f:
+    with open('result.txt', 'a') as f:
         f.write(f"Best prior for training the fused model: {training_prior}\n")
         f.write(f"DCF calibrated fused scores model : {best_dcf}\n")
         f.write(f"minDCF calibrated fused scores model: {min_dcf}\n")
