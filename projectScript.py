@@ -1,7 +1,7 @@
 import numpy
 import matplotlib.pyplot as plt
 import scipy.linalg
-
+import random
 
 features = numpy.array([])
 labels = numpy.array([])
@@ -1309,7 +1309,7 @@ if __name__ == '__main__':
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     S = (vcol(w).T @ DVAL_quad + b).ravel()
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
-    
+    ''' 
     with open("result.txt", "w") as f:
         f.write("The best 3 models:\n")
         f.write(f"GMM_best scores: {gmm_best_scores}\n")
@@ -1340,13 +1340,16 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
     
-
+    '''
     # K-FOLD calibration
     k = 10
     priors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     dcf_gmm = []
     dcf_svm = []
     dcf_lr =[]
+    random.shuffle(gmm_best_scores)
+    random.shuffle(svm_rbf_best_scores)
+    random.shuffle(lr_quad_best_scores)
     for p in priors:
         # train on different priors
         calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,LVAL, p,k)
