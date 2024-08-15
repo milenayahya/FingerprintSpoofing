@@ -306,6 +306,31 @@ def min_cost(llr,thresholds,labels,pi,Cfn,Cfp):
 
     return minDCF,Pfn,Pfp
 
+def dcf_error_array(llr,thresholds,labels,pi,Cfn,Cfp):
+    res =[]
+    Pfn =[]
+    Pfp =[]
+    for t in thresholds:
+        c= numpy.where(llr<=t,0,1)
+        dcf, dcf_norm, pfn,pfp = binary_dcf(c,labels,pi,Cfn,Cfp)
+       
+        res.append(dcf_norm)
+        Pfn.append(pfn)
+        Pfp.append(pfp)
+           
+    return res
+
+def dcf_error_plot(scores1, scores2, scores3, scores4, thresholds):
+    plt.figure()
+    plt.plot(thresholds,scores1,label='GMM_DCF', color='red')
+    plt.plot(thresholds,scores2,label='SVM_DCF', color='blue')
+    plt.plot(thresholds,scores3,label='LR_DCF', color='green')
+    plt.plot(thresholds,scores4,label='Fusion_DCF', color='purple')
+    plt.legend()
+    plt.show()
+    plt.savefig('eval_dcf_error.png',format='png', dpi=300, bbox_inches='tight')
+    plt.close()
+
 def compute_conf_matrix(predictions,labels):
     i=0
     nb_classes = len(numpy.unique(labels))
@@ -1540,18 +1565,20 @@ if __name__ == '__main__':
     #evaluating (point 1)
     dcf = dcf_packed(vrow(calibrated_scores_gmm),labels_gmm,0.1,1,1)
     minDCF = minDCF_packed(calibrated_scores_gmm,labels_gmm,0.1,1,1)
-    dcf_bayes, minDCF_bayes = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
+    dcf_bayes_gmm, minDCF_bayes_gmm = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
 
     plt.figure()
-    plt.plot(priors, dcf_bayes, label='dcf_gmm', color='#ADD8E6')
-    plt.plot(priors, minDCF_bayes, label='minDCF_gmm', color='#00008B')
+    plt.plot(priors, dcf_bayes_gmm, label='dcf_gmm', color='#ADD8E6')
+    plt.plot(priors, minDCF_bayes_gmm, label='minDCF_gmm', color='#00008B')
     plt.xlim([-4,4])
     plt.legend()
     plt.show()
+    plt.savefig('delivered_system_bayes.png',format='png', dpi=300, bbox_inches='tight')
+    plt.close()
 
     with open('evalResult.txt', 'a') as f:
         f.write(f"actual dcf of eval data using delivered (gmm) system: {dcf}\n")
-        f.write(f"actual dcf of eval data using delivered (gmm) system: {minDCF}\n")
+        f.write(f"minimum dcf of eval data using delivered (gmm) system: {minDCF}\n")
 
 
     ## Other best models
@@ -1566,6 +1593,9 @@ if __name__ == '__main__':
     calibrated_scores_svm, labels_svm = Kfold(svm_scores,svm_labels,0.3,k)
     numpy.save('svm_rbf_eval_calibrated_scores.npy', calibrated_scores_svm)
     numpy.save('labels_svm.npy', labels_svm)
+    dcf = dcf_packed(vrow(calibrated_scores_svm),labels_svm,0.1,1,1)
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using svm system: {dcf}\n")
 
     ## Best LR evaluated on evaludation data
     S = numpy.load('S_LR.npy')
@@ -1578,8 +1608,79 @@ if __name__ == '__main__':
     calibrated_scores_lr, labels_lr = Kfold(lr_scores,lr_labels,0.9,k)
     numpy.save('lr_quad_eval_scores.npy', calibrated_scores_lr)
     numpy.save('labels_lr.npy', labels_lr)
+    dcf = dcf_packed(vrow(calibrated_scores_lr),labels_lr,0.1,1,1)
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using lr system: {dcf}\n")
+
 
     ## Fusion best model
     fused_scores, fused_labels = Kfold_fusion(gmm_eval_scores, svm_rbf_eval_scores, lr_quad_eval_scores, evalLabels, 0.2, k)
     numpy.save('fused_scores.npy', fused_scores)
     numpy.save('fused_labels.npy', fused_labels)
+    dcf = dcf_packed(vrow(fused_scores),fused_labels,0.1,1,1)
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using fused system: {dcf}\n")
+
+
+    # DCF error plots
+    thresholds = calibrated_scores_gmm
+    thresholds.append(calibrated_scores_svm)
+    thresholds.append(calibrated_scores_lr)
+    thresholds.append(fused_scores)
+    numpy.sort(thresholds)
+    thresholds = list(set(thresholds))
+
+    dcf_gmm = dcf_error_array(calibrated_scores_gmm,thresholds,labels_gmm,0.1,1,1)
+    dcf_svm = dcf_error_array(calibrated_scores_svm,thresholds,labels_svm,0.1,1,1)
+    dcf_lr = dcf_error_array(calibrated_scores_lr,thresholds,labels_lr,0.1,1,1)
+    dcf_fused = dcf_error_array(fused_scores,thresholds,fused_labels,0.1,1,1)
+
+    dcf_error_plot(dcf_gmm,dcf_svm,dcf_lr,dcf_fused,thresholds)
+
+
+    #actDCF, minDCF, Bayes Error Plot
+    #evaluating
+
+    #svm
+    dcf = dcf_packed(vrow(calibrated_scores_svm),labels_svm,0.1,1,1)
+    minDCF = minDCF_packed(calibrated_scores_svm,labels_svm,0.1,1,1)
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using svm system: {dcf}\n")
+        f.write(f"minimum dcf of eval data using svm system: {minDCF}\n")
+
+    dcf_bayes_svm, minDCF_bayes_svm = bayes_error_plot_general(priors, calibrated_scores_svm,labels_svm)
+
+    #lr
+    dcf = dcf_packed(vrow(calibrated_scores_lr),labels_lr,0.1,1,1)
+    minDCF = minDCF_packed(calibrated_scores_lr,labels_lr,0.1,1,1)
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using lr system: {dcf}\n")
+        f.write(f"minimum dcf of eval data using lr system: {minDCF}\n")
+
+    dcf_bayes_lr, minDCF_bayes_lr = bayes_error_plot_general(priors, calibrated_scores_lr,labels_lr)
+
+    #fusion
+    dcf = dcf_packed(vrow(fused_scores),fused_labels,0.1,1,1)
+    minDCF = minDCF_packed(fused_scores,fused_labels,0.1,1,1)
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using svm system: {dcf}\n")
+        f.write(f"minimum dcf of eval data using svm system: {minDCF}\n")
+
+    dcf_bayes_fused, minDCF_bayes_fused= bayes_error_plot_general(priors, fused_scores,fused_labels)
+
+    plt.figure()
+    plt.plot(priors, dcf_bayes_gmm, label='dcf_gmm', color='#ADD8E6')
+    plt.plot(priors, minDCF_bayes_gmm, label='minDCF_gmm', color='#00008B')
+    plt.plot(priors, dcf_bayes_svm, label='dcf_svm', color='#FFB6C1')
+    plt.plot(priors, minDCF_bayes_svm, label='minDCF_svm', color='#8B0000')
+    plt.plot(priors, dcf_bayes_lr, label='DCF_LR', color='#90EE90')
+    plt.plot(priors, minDCF_bayes_lr, label='minDCF_LR', color='#006400')
+    plt.plot(priors, dcf_bayes_fused, label='DCF_fused', color='#FAFAD2')
+    plt.plot(priors, minDCF_bayes_fused, label='minDCF_fused', color='#DAA520')
+    plt.xlim([-4,4])
+    plt.legend()
+    plt.show()
+    plt.savefig('eval_bayes.png',format='png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+   
