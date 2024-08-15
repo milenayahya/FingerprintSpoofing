@@ -14,3 +14,5 @@ actual dcf of eval data using lr system: 1.0
 minimum dcf of eval data using lr system: 0.997979797979798
 actual dcf of eval data using svm system: 0.24448444844484446
 minimum dcf of eval data using svm system: 0.22915291529152915
+
+### AFTER DEBUGGING LR

@@ -328,8 +328,8 @@ def dcf_error_plot(scores1, scores2, scores3, scores4, thresholds):
     plt.plot(thresholds,scores3,label='LR_DCF', color='green')
     plt.plot(thresholds,scores4,label='Fusion_DCF', color='purple')
     plt.legend()
-    plt.show()
     plt.savefig('eval_dcf_error.png',format='png', dpi=300, bbox_inches='tight')
+    plt.show()
     plt.close()
 
 def compute_conf_matrix(predictions,labels):
@@ -1359,7 +1359,8 @@ if __name__ == '__main__':
     w,b = x_min[0:-1], x_min[-1]
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     S = (vcol(w).T @ DVAL_quad + b).ravel()
-    numpy.save('S_LR.npy', S)
+    numpy.save('w_LR.npy', w)
+    numpy.save('b_LR.npy', b)
 
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
 
@@ -1578,8 +1579,8 @@ if __name__ == '__main__':
     plt.plot(priors, dcf_bayes_gmm, label='dcf_gmm', color='#ADD8E6')
     plt.plot(priors, minDCF_bayes_gmm, label='minDCF_gmm', color='#00008B')
     plt.legend()
+    plt.savefig('delivered_system_bayes.png',format='png',dpi=300, bbox_inches='tight')
     plt.show()
-    plt.savefig('delivered_system_bayes.png',format='png')
     plt.close()
 
     with open('evalResult.txt', 'a') as f:
@@ -1604,7 +1605,10 @@ if __name__ == '__main__':
         f.write(f"actual dcf of eval data using svm system: {dcf}\n")
 
     ## Best LR evaluated on evaludation data
-    S = numpy.load('S_LR.npy')
+    w = numpy.load('w_LR.npy')
+    b = numpy.load('b_LR.npy')
+    quad_eval_features = quadratic_features(evalFeatures)
+    S = (vcol(w).T @ quad_eval_features + b).ravel()
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     lr_quad_eval_scores = S - numpy.log(prior_scale / (1 - prior_scale))
     lr = list(zip(lr_quad_eval_scores,evalLabels))
@@ -1686,8 +1690,8 @@ if __name__ == '__main__':
     plt.plot(priors, minDCF_bayes_fused, label='minDCF_fused', color='#DAA520')
     plt.xlim([-4,4])
     plt.legend()
-    plt.show()
     plt.savefig('eval_bayes.png',format='png', dpi=300, bbox_inches='tight')
+    plt.show()
     plt.close()
 
    
