@@ -778,6 +778,20 @@ def Kfold(scores, labels, prior, k):
     return calibrated_scores, labels_sys
 
 def Kfold_fusion(scores1, scores2, scores3, labels, prior, k):
+    
+    combined = list(zip(scores1, scores2, scores3, labels))
+    
+    # Shuffle the combined list to maintain alignment across models
+    random.shuffle(combined)
+    
+    # Separate the shuffled data back into individual scores and labels
+    scores1, scores2, scores3, shuffled_labels = zip(*combined)
+    
+    # Convert to numpy arrays
+    scores1 = numpy.array(scores1)
+    scores2 = numpy.array(scores2)
+    scores3 = numpy.array(scores3)
+    shuffled_labels = numpy.array(shuffled_labels)
     fused_scores =[]
     fused_labels =[]
 
@@ -785,9 +799,11 @@ def Kfold_fusion(scores1, scores2, scores3, labels, prior, k):
         SCAL1, SVAL1 = extract_folds(scores1,fold,k)
         SCAL2, SVAL2 = extract_folds(scores2,fold,k)
         SCAL3, SVAL3 = extract_folds(scores3,fold,k)
-        LCAL, LVAL = extract_folds(labels,fold,k)
+        LCAL, LVAL = extract_folds(shuffled_labels, fold, k)
+
         # Build the training scores "feature" matrix
-        SCAL = numpy.vstack([SCAL1, SCAL2,SCAL3])
+        SCAL = numpy.vstack([SCAL1, SCAL2, SCAL3])
+        
         x_min, f_min, d = trainLogReg(SCAL, LCAL,0, prior)
         w = x_min[0:-1]
         b = x_min[-1]
@@ -1292,22 +1308,30 @@ if __name__ == '__main__':
     
     # Bayes error plots
     # best models:
-
+    '''
     #best gmm
     gmm1 =LBG_EM(DTR[:,LTR==1],10**(-6),8,0.1,0.01,diag=True)
     gmm0 =LBG_EM(DTR[:,LTR==0],10**(-6),8,0.1,0.01,diag=True)
+
+    numpy.save('gmm1.npy', gmm1)
+    numpy.save('gmm0.npy', gmm0)
+    
+    '''
     gmm_best_scores = logpdf_GMM(DVAL,gmm1)[1] - logpdf_GMM(DVAL,gmm0)[1]
+    
 
     #best svm
     _,_,_,_,svm_rbf_best_scores = rbf_SVM(DTR,DVAL,LTR,LVAL,numpy.exp(-2),1,10**1.5,0.1)
 
-
+    '''
     # best LR
     DTR_quad, DVAL_quad = quadratic_features(DTR), quadratic_features(DVAL)
     x_min, f_min, d = trainLogReg(DTR_quad, LTR, 10**(-1.5))
     w,b = x_min[0:-1], x_min[-1]
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     S = (vcol(w).T @ DVAL_quad + b).ravel()
+    numpy.save('S_LR.npy', S)
+    '''
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
 
     numpy.save('gmm_best_scores.npy', gmm_best_scores)
@@ -1342,8 +1366,14 @@ if __name__ == '__main__':
     '''
 
     # K-FOLD calibration
+    # Set random seeds for reproducibility
+    random_seed = 42
+    random.seed(random_seed)
+    numpy.random.seed(random_seed)
     k = 10
     priors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+    '''
     dcf_gmm = []
     dcf_svm = []
     dcf_lr =[]
@@ -1369,7 +1399,7 @@ if __name__ == '__main__':
     lr_quad_best_scores = numpy.array(lr_quad_best_scores)
     lr_labels = numpy.array(lr_labels)
 
-    '''
+    
     for p in priors:
         # train on different priors
         calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,gmm_labels, p,k)
@@ -1381,6 +1411,24 @@ if __name__ == '__main__':
         dcf_svm.append(dcf_packed(vrow(calibrated_scores_svm),labels_svm,0.1,1,1))
         dcf_lr.append(dcf_packed(vrow(calibrated_scores_lr),labels_lr,0.1,1,1))
     
+    # save to plot
+    with open('result.txt', 'a') as f:
+
+    # Write DCF values for GMM
+        f.write("DCF values for GMM model:\n")
+        for i, value in enumerate(dcf_gmm):
+            f.write(f"Prior {priors[i]}: {value}\n")
+        
+        # Write DCF values for SVM
+        f.write("DCF values for SVM model:\n")
+        for i, value in enumerate(dcf_svm):
+            f.write(f"Prior {priors[i]}: {value}\n")
+        
+        # Write DCF values for LR
+        f.write("DCF values for LR model:\n")
+        for i, value in enumerate(dcf_lr):
+            f.write(f"Prior {priors[i]}: {value}\n")
+
     # select best performing calibration transformation for every model (lowest  dcf for target application)
     prior_training_gmm = priors[dcf_gmm.index(min(dcf_gmm))]
     prior_training_svm = priors[dcf_svm.index(min(dcf_svm))]
@@ -1406,17 +1454,18 @@ if __name__ == '__main__':
 
 
     # Bayes Error Plot using best calibrated scores 
-    '''
+    
     # Best Models:
-    calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,gmm_labels, 0.3,k)
-    calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,svm_labels,0.3,k)
-    calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,lr_labels,0.4,k)
+    calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,gmm_labels, prior_training_gmm,k)
+    calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,svm_labels,prior_training_svm,k)
+    calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,lr_labels,prior_training_lr,k)
+
     priors = numpy.linspace(-4,4,40)
     dcf_gmm, minDCF_gmm = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
     dcf_svm, minDCF_svm = bayes_error_plot_general(priors, calibrated_scores_svm,labels_svm)
     dcf_LR, minDCF_LR = bayes_error_plot_general(priors, calibrated_scores_lr,labels_lr)
 
-    '''     
+       
     with open('result.txt', 'a') as f:
         f.write(f"DCF calibrated GMM over a range of application priors:\n {dcf_gmm}\n")
         f.write(f"minDCF calibrated GMM over a range of application priors:\n {minDCF_gmm}\n")
@@ -1424,7 +1473,7 @@ if __name__ == '__main__':
         f.write(f"minDCF calibrated SVM over a range of application priors:\n {minDCF_svm}\n")
         f.write(f"DCF calibrated LR over a range of application priors:\n {dcf_LR}\n")
         f.write(f"minDCF calibrated LR over a range of application priors:\n {minDCF_LR}\n")
-    '''
+    
     plt.figure()
     plt.plot(priors, dcf_gmm, label='dcf_gmm', color='#ADD8E6')
     plt.plot(priors, minDCF_gmm, label='minDCF_gmm', color='#00008B')
@@ -1436,8 +1485,13 @@ if __name__ == '__main__':
     plt.legend()
     plt.show()
 
-    '''
+    
     # FUSION
+    #unshuffled scores
+    gmm_best_scores = numpy.load('gmm_best_scores.npy')
+    svm_rbf_best_scores = numpy.load('svm_rbf_best_scores.npy')
+    lr_quad_best_scores = numpy.load('lr_quad_best_scores.npy')
+
     dcf = []
     priors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
     for p in priors:
@@ -1454,6 +1508,78 @@ if __name__ == '__main__':
         f.write(f"Best prior for training the fused model: {training_prior}\n")
         f.write(f"DCF calibrated fused scores model : {best_dcf}\n")
         f.write(f"minDCF calibrated fused scores model: {min_dcf}\n")
-    '''    
     
+    '''
     
+    ####### EVALUATION #######
+    evalFeatures, evalLabels = load('evalData.txt')
+    evalLabels= evalLabels.flatten()
+
+    ## the delivered system is GMM with diag cov and c=8, the scores being calibrated, the calibration transformation 
+    ## trained on prior = 0.3. It is trained on the training dataset, but evaluated on our new eval dataset
+
+    gmm1 = numpy.load('gmm1.npy')
+    gmm0 = numpy.load('gmm0.npy')
+
+    gmm_eval_scores = logpdf_GMM(evalFeatures,gmm1)[1] - logpdf_GMM(evalFeatures,gmm0)[1]
+
+    #shuffling the scores
+
+    gmm = list(zip(gmm_eval_scores,evalLabels))
+    random.shuffle(gmm)
+    scores,labels = zip(*gmm)
+    gmm_scores = numpy.array(scores)
+    gmm_labels = numpy.array(labels)
+
+    #calibrating the scores
+    calibrated_scores_gmm, labels_gmm = Kfold(gmm_scores,gmm_labels, 0.3,k) # ==>> BEST DELIVERED SYSTEM
+    
+    numpy.save('gmm_eval_calibrated_scores.npy', calibrated_scores_gmm)
+    numpy.save('labels_gmm.npy', labels_gmm)
+
+    #evaluating (point 1)
+    dcf = dcf_packed(vrow(calibrated_scores_gmm),labels_gmm,0.1,1,1)
+    minDCF = minDCF_packed(calibrated_scores_gmm,labels_gmm,0.1,1,1)
+    dcf_bayes, minDCF_bayes = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
+
+    plt.figure()
+    plt.plot(priors, dcf_bayes, label='dcf_gmm', color='#ADD8E6')
+    plt.plot(priors, minDCF_bayes, label='minDCF_gmm', color='#00008B')
+    plt.xlim([-4,4])
+    plt.legend()
+    plt.show()
+
+    with open('evalResult.txt', 'a') as f:
+        f.write(f"actual dcf of eval data using delivered (gmm) system: {dcf}\n")
+        f.write(f"actual dcf of eval data using delivered (gmm) system: {minDCF}\n")
+
+
+    ## Other best models
+
+    ## Best SVM evaluated on evaludation data
+    _,_,_,_,svm_rbf_eval_scores = rbf_SVM(DTR,evalFeatures,LTR,evalLabels,numpy.exp(-2),1,10**1.5,0.1)
+    svm = list(zip(svm_rbf_eval_scores,evalLabels))
+    random.shuffle(svm)
+    scores,labels = zip(*svm)
+    svm_scores = numpy.array(scores)
+    svm_labels = numpy.array(labels)
+    calibrated_scores_svm, labels_svm = Kfold(svm_scores,svm_labels,0.3,k)
+    numpy.save('svm_rbf_eval_calibrated_scores.npy', calibrated_scores_svm)
+    numpy.save('labels_svm.npy', labels_svm)
+
+    ## Best LR evaluated on evaludation data
+    S = numpy.load('S_LR.npy')
+    lr_quad_eval_scores = S - numpy.log(prior_scale / (1 - prior_scale))
+    lr = list(zip(lr_quad_eval_scores,evalLabels))
+    random.shuffle(lr)
+    scores,labels = zip(*lr)
+    lr_scores = numpy.array(scores)
+    lr_labels = numpy.array(labels)
+    calibrated_scores_lr, labels_lr = Kfold(lr_scores,lr_labels,0.9,k)
+    numpy.save('lr_quad_eval_scores.npy', calibrated_scores_lr)
+    numpy.save('labels_lr.npy', labels_lr)
+
+    ## Fusion best model
+    fused_scores, fused_labels = Kfold_fusion(gmm_eval_scores, svm_rbf_eval_scores, lr_quad_eval_scores, evalLabels, 0.2, k)
+    numpy.save('fused_scores.npy', fused_scores)
+    numpy.save('fused_labels.npy', fused_labels)
