@@ -1352,7 +1352,7 @@ if __name__ == '__main__':
     #best svm
     _,_,_,_,svm_rbf_best_scores = rbf_SVM(DTR,DVAL,LTR,LVAL,numpy.exp(-2),1,10**1.5,0.1)
 
-    
+    '''
     # best LR
     DTR_quad, DVAL_quad = quadratic_features(DTR), quadratic_features(DVAL)
     x_min, f_min, d = trainLogReg(DTR_quad, LTR, 10**(-1.5))
@@ -1361,7 +1361,7 @@ if __name__ == '__main__':
     S = (vcol(w).T @ DVAL_quad + b).ravel()
     numpy.save('w_LR.npy', w)
     numpy.save('b_LR.npy', b)
-
+    '''
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
 
     numpy.save('gmm_best_scores.npy', gmm_best_scores)
@@ -1571,22 +1571,26 @@ if __name__ == '__main__':
     numpy.save('labels_gmm.npy', labels_gmm)
 
     #evaluating (point 1)
+
     dcf = dcf_packed(vrow(calibrated_scores_gmm),labels_gmm,0.1,1,1)
     minDCF = minDCF_packed(calibrated_scores_gmm,labels_gmm,0.1,1,1)
     dcf_bayes_gmm, minDCF_bayes_gmm = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
 
     plt.figure()
     plt.plot(priors, dcf_bayes_gmm, label='dcf_gmm', color='#ADD8E6')
-    plt.plot(priors, minDCF_bayes_gmm, label='minDCF_gmm', color='#00008B')
+    plt.plot(priors, minDCF_bayes_gmm, label='minDCF_gmm', color='#00008B') 
     plt.legend()
-    plt.savefig('delivered_system_bayes.png',format='png',dpi=300, bbox_inches='tight')
+    plt.title("fig1")
+    plt.savefig('delivered_system_bayes.png',format='png') 
     plt.show()
     plt.close()
 
     with open('evalResult.txt', 'a') as f:
         f.write(f"actual dcf of eval data using delivered (gmm) system: {dcf}\n")
         f.write(f"minimum dcf of eval data using delivered (gmm) system: {minDCF}\n")
-
+        f.write("dcf_bayes_gmm values for each prior:\n")
+        for prior, dcf in zip(priors, dcf_bayes_gmm):
+            f.write(f"Prior: {prior:.2f}, dcf_bayes_gmm: {dcf:.4f}\n")
 
     ## Other best models
 
@@ -1607,8 +1611,8 @@ if __name__ == '__main__':
     ## Best LR evaluated on evaludation data
     w = numpy.load('w_LR.npy')
     b = numpy.load('b_LR.npy')
-    quad_eval_features = quadratic_features(evalFeatures)
-    S = (vcol(w).T @ quad_eval_features + b).ravel()
+    quad_eval_feat = quadratic_features(evalFeatures)
+    S = (vcol(w).T @ quad_eval_feat + b).ravel()
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     lr_quad_eval_scores = S - numpy.log(prior_scale / (1 - prior_scale))
     lr = list(zip(lr_quad_eval_scores,evalLabels))
@@ -1651,7 +1655,7 @@ if __name__ == '__main__':
 
     #actDCF, minDCF, Bayes Error Plot
     #evaluating
-
+    
     #svm
     dcf = dcf_packed(vrow(calibrated_scores_svm),labels_svm,0.1,1,1)
     minDCF = minDCF_packed(calibrated_scores_svm,labels_svm,0.1,1,1)
@@ -1689,7 +1693,7 @@ if __name__ == '__main__':
     plt.plot(priors, dcf_bayes_fused, label='DCF_fused', color='#FAFAD2')
     plt.plot(priors, minDCF_bayes_fused, label='minDCF_fused', color='#DAA520')
     plt.xlim([-4,4])
-    plt.legend()
+    plt.legend()    
     plt.savefig('eval_bayes.png',format='png', dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()

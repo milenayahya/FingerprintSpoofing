@@ -16,3 +16,10 @@ actual dcf of eval data using svm system: 0.24448444844484446
 minimum dcf of eval data using svm system: 0.22915291529152915
 
 ### AFTER DEBUGGING LR
+actual dcf of eval data using delivered (gmm) system: 0.21281792019911333
+minimum dcf of eval data using delivered (gmm) system: 0.20123223591373238
+actual dcf of eval data using delivered (gmm) system: 0.21281792019911333
+minimum dcf of eval data using delivered (gmm) system: 0.20123223591373238
+actual dcf of eval data using delivered (gmm) system: 0.21281792019911333
+minimum dcf of eval data using delivered (gmm) system: 0.20123223591373238
+actual dcf of eval data using svm system: 0.2715007944532717
