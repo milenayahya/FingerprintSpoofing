@@ -2,6 +2,7 @@ import numpy
 import matplotlib.pyplot as plt
 import scipy.linalg
 import random
+import pickle
 
 features = numpy.array([])
 labels = numpy.array([])
@@ -1333,22 +1334,25 @@ if __name__ == '__main__':
     
     # Bayes error plots
     # best models:
-    '''
+    
     #best gmm
     gmm1 =LBG_EM(DTR[:,LTR==1],10**(-6),8,0.1,0.01,diag=True)
     gmm0 =LBG_EM(DTR[:,LTR==0],10**(-6),8,0.1,0.01,diag=True)
 
-    numpy.save('gmm1.npy', gmm1)
-    numpy.save('gmm0.npy', gmm0)
+    with open('gmm1.pkl', 'wb') as f:
+        pickle.dump(gmm1, f)
+
+    with open('gmm0.pkl', 'wb') as f:
+        pickle.dump(gmm0, f)
     
-    '''
+    
     gmm_best_scores = logpdf_GMM(DVAL,gmm1)[1] - logpdf_GMM(DVAL,gmm0)[1]
     
 
     #best svm
     _,_,_,_,svm_rbf_best_scores = rbf_SVM(DTR,DVAL,LTR,LVAL,numpy.exp(-2),1,10**1.5,0.1)
 
-    '''
+    
     # best LR
     DTR_quad, DVAL_quad = quadratic_features(DTR), quadratic_features(DVAL)
     x_min, f_min, d = trainLogReg(DTR_quad, LTR, 10**(-1.5))
@@ -1356,7 +1360,7 @@ if __name__ == '__main__':
     prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     S = (vcol(w).T @ DVAL_quad + b).ravel()
     numpy.save('S_LR.npy', S)
-    '''
+
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
 
     numpy.save('gmm_best_scores.npy', gmm_best_scores)
@@ -1543,8 +1547,11 @@ if __name__ == '__main__':
     ## the delivered system is GMM with diag cov and c=8, the scores being calibrated, the calibration transformation 
     ## trained on prior = 0.3. It is trained on the training dataset, but evaluated on our new eval dataset
 
-    gmm1 = numpy.load('gmm1.npy')
-    gmm0 = numpy.load('gmm0.npy')
+    with open('gmm1.pkl', 'rb') as f:
+        gmm1 = pickle.load(f)
+
+    with open('gmm0.pkl', 'rb') as f:
+        gmm0 = pickle.load(f)
 
     gmm_eval_scores = logpdf_GMM(evalFeatures,gmm1)[1] - logpdf_GMM(evalFeatures,gmm0)[1]
 
@@ -1570,10 +1577,9 @@ if __name__ == '__main__':
     plt.figure()
     plt.plot(priors, dcf_bayes_gmm, label='dcf_gmm', color='#ADD8E6')
     plt.plot(priors, minDCF_bayes_gmm, label='minDCF_gmm', color='#00008B')
-    plt.xlim([-4,4])
     plt.legend()
     plt.show()
-    plt.savefig('delivered_system_bayes.png',format='png', dpi=300, bbox_inches='tight')
+    plt.savefig('delivered_system_bayes.png',format='png')
     plt.close()
 
     with open('evalResult.txt', 'a') as f:
@@ -1599,6 +1605,7 @@ if __name__ == '__main__':
 
     ## Best LR evaluated on evaludation data
     S = numpy.load('S_LR.npy')
+    prior_scale = numpy.sum(LTR == 1) / LTR.shape[0]
     lr_quad_eval_scores = S - numpy.log(prior_scale / (1 - prior_scale))
     lr = list(zip(lr_quad_eval_scores,evalLabels))
     random.shuffle(lr)
@@ -1623,12 +1630,12 @@ if __name__ == '__main__':
 
 
     # DCF error plots
-    thresholds = calibrated_scores_gmm
-    thresholds.append(calibrated_scores_svm)
-    thresholds.append(calibrated_scores_lr)
-    thresholds.append(fused_scores)
-    numpy.sort(thresholds)
-    thresholds = list(set(thresholds))
+    thresholds= [calibrated_scores_gmm,calibrated_scores_svm,calibrated_scores_lr,fused_scores]
+    array = numpy.concatenate(thresholds)
+    array = numpy.sort(array)
+    thresholds=array.tolist()
+
+
 
     dcf_gmm = dcf_error_array(calibrated_scores_gmm,thresholds,labels_gmm,0.1,1,1)
     dcf_svm = dcf_error_array(calibrated_scores_svm,thresholds,labels_svm,0.1,1,1)
