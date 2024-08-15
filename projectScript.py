@@ -1571,7 +1571,7 @@ if __name__ == '__main__':
     numpy.save('labels_gmm.npy', labels_gmm)
 
     #evaluating (point 1)
-
+    priors = numpy.linspace(-4, 4, 40)
     dcf = dcf_packed(vrow(calibrated_scores_gmm),labels_gmm,0.1,1,1)
     minDCF = minDCF_packed(calibrated_scores_gmm,labels_gmm,0.1,1,1)
     dcf_bayes_gmm, minDCF_bayes_gmm = bayes_error_plot_general(priors, calibrated_scores_gmm,labels_gmm)
