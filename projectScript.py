@@ -624,13 +624,6 @@ def rbf_SVM(DTR,DVAL,LTR,LVAL,gamma,k,C,prior):
 
     alpha_opt, _, _ = scipy.optimize.fmin_l_bfgs_b(obj_dual_fun,alpha0,fprime=gradient_fun,bounds=bounds,args=(H_rbf,),factr=1.0)
 
-    # #what_opt = numpy.dot(Dhat, alpha_opt*z)
-    # what_opt = numpy.zeros(DTR.shape[0])
-
-    # # Compute the optimized weight vector
-    # for i in range(alpha_opt.shape[0]):
-    #     what_opt += alpha_opt[i] * z[i] * DTR[:, i]
-
     scores = rbf_kernel_scores(DTR,DVAL,alpha_opt,z,gamma,k)
 
     predicts = Bayes_Decision(scores,prior,1,1)
@@ -643,6 +636,7 @@ def rbf_SVM(DTR,DVAL,LTR,LVAL,gamma,k,C,prior):
     minDCF,_,_ = min_cost(vcol(scores), vcol(numpy.sort(scores)),LVAL,prior,1,1)
 
     return dual_sol_minimized, error,DCF,minDCF,scores
+
 
 def obj_dual_fun(alpha,Hhat):
     H = Hhat @ vcol(alpha)
@@ -1539,12 +1533,12 @@ if __name__ == '__main__':
         f.write(f"DCF calibrated fused scores model : {best_dcf}\n")
         f.write(f"minDCF calibrated fused scores model: {min_dcf}\n")
     
-    '''
     
+    '''
     ####### EVALUATION #######
     evalFeatures, evalLabels = load('evalData.txt')
     evalLabels= evalLabels.flatten()
-
+    '''
     ## the delivered system is GMM with diag cov and c=8, the scores being calibrated, the calibration transformation 
     ## trained on prior = 0.3. It is trained on the training dataset, but evaluated on our new eval dataset
 
@@ -1698,4 +1692,79 @@ if __name__ == '__main__':
     plt.show()
     plt.close()
 
-   
+    '''
+    ## point 4
+
+    # evaluating RBF SVM models with different hyperparameters on the evaluation dataset
+    # comparing in terms of only minDCF in order to avoid calibrating the scores
+    ## RBF-SVM
+    
+    # we retrain different SVM models (grid search on gamma and C)
+    # we evaluate these re-trained models on the evaluation dataset and compute the minDCF
+
+    prior = 0.1
+    k = 1
+    gamma = [numpy.exp(-4),numpy.exp(-3),numpy.exp(-2),numpy.exp(-1)]
+    C =  numpy.logspace(-3,2,11)
+
+    DCF_rbfSVM = numpy.zeros((len(gamma),len(C)))
+    minDCF_rbfSVM = numpy.zeros((len(gamma),len(C)))
+    
+    i = 0
+    for gammaa in gamma:
+        DCF_arr = []
+        minDCF_arr = []
+        for val in C:
+            _,_,DCF,minDCF,_ = rbf_SVM(DTR,evalFeatures,LTR,evalLabels,gammaa,k,val,prior)
+            DCF_arr.append(DCF)
+            minDCF_arr.append(minDCF)
+        
+        DCF_rbfSVM[i,:] = DCF_arr
+        minDCF_rbfSVM[i,:] = minDCF_arr
+        i += 1
+         
+    with open("results.txt", "a") as f:
+        plt.figure()
+
+        # Plot and write for gamma = e^{-4}
+        #plt.plot(C, DCF_rbfSVM[0, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-4}$', color='#ADD8E6')
+        plt.plot(C, minDCF_rbfSVM[0, :], label=r'minDCF_rbfSVM, $\gamma = e^{-4}$', color='#00008B')
+        f.write("Gamma = e^{-4}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[0, :], minDCF_rbfSVM[0, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
+
+        # Plot and write for gamma = e^{-3}
+        #plt.plot(C, DCF_rbfSVM[1, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-3}$', color='#FFB6C1')
+        plt.plot(C, minDCF_rbfSVM[1, :], label=r'minDCF_rbfSVM, $\gamma = e^{-3}$', color='#8B0000')
+        f.write("Gamma = e^{-3}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[1, :], minDCF_rbfSVM[1, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
+
+        # Plot and write for gamma = e^{-2}
+        #plt.plot(C, DCF_rbfSVM[2, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-2}$', color='#90EE90')
+        plt.plot(C, minDCF_rbfSVM[2, :], label=r'minDCF_rbfSVM, $\gamma = e^{-2}$', color='#006400')
+        f.write("Gamma = e^{-2}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[2, :], minDCF_rbfSVM[2, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
+
+        # Plot and write for gamma = e^{-1}
+        #plt.plot(C, DCF_rbfSVM[3, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-1}$', color='#FFA500')
+        plt.plot(C, minDCF_rbfSVM[3, :], label=r'minDCF_rbfSVM, $\gamma = e^{-1}$', color='#FF8C00')
+        f.write("Gamma = e^{-1}\n")
+        for c_value, actual_dcf, min_dcf in zip(C, DCF_rbfSVM[3, :], minDCF_rbfSVM[3, :]):
+            f.write(f"C = {c_value}, actual_DCF = {actual_dcf}, min_DCF = {min_dcf}\n")
+        f.write("\n")
+
+    plt.legend()
+    plt.show()
+    plt.xscale('log', base=10)
+    plt.xlabel('C (log scale)')
+    plt.ylabel('minDCF')
+    plt.title(r'minDCF vs C for different $\gamma$ values (RBF SVM)')
+    plt.grid(True)
+    plt.savefig("RBF_SVM_tuning.png",format='png', dpi=300, bbox_inches='tight')
+    plt.show()
+    plt.close()

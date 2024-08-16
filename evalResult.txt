@@ -48,5 +48,5 @@ actual dcf of eval data using svm system: 0.2715007944532717
 minimum dcf of eval data using svm system: 0.26190179890887677
 actual dcf of eval data using lr system: 0.3658696207735641
 minimum dcf of eval data using lr system: 0.35245724952499474
-actual dcf of eval data using svm system: 0.1934999277769753
-minimum dcf of eval data using svm system: 0.1918276869742997
+actual dcf of eval data using fused system: 0.1934999277769753
+minimum dcf of eval data using fused system: 0.1918276869742997
