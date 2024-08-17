@@ -1346,7 +1346,7 @@ if __name__ == '__main__':
     #best svm
     _,_,_,_,svm_rbf_best_scores = rbf_SVM(DTR,DVAL,LTR,LVAL,numpy.exp(-2),1,10**1.5,0.1)
 
-    '''
+
     # best LR
     DTR_quad, DVAL_quad = quadratic_features(DTR), quadratic_features(DVAL)
     x_min, f_min, d = trainLogReg(DTR_quad, LTR, 10**(-1.5))
@@ -1355,7 +1355,7 @@ if __name__ == '__main__':
     S = (vcol(w).T @ DVAL_quad + b).ravel()
     numpy.save('w_LR.npy', w)
     numpy.save('b_LR.npy', b)
-    '''
+    
     lr_quad_best_scores = S - numpy.log(prior_scale / (1 - prior_scale))
 
     numpy.save('gmm_best_scores.npy', gmm_best_scores)
@@ -1723,9 +1723,9 @@ if __name__ == '__main__':
         minDCF_rbfSVM[i,:] = minDCF_arr
         i += 1
          
-    with open("results.txt", "a") as f:
+    with open("evalResult.txt", "a") as f:
         plt.figure()
-
+        f.write(f"Evaluating variants of the SVM model:\n")
         # Plot and write for gamma = e^{-4}
         #plt.plot(C, DCF_rbfSVM[0, :], label=r'actual_DCF_rbfSVM, $\gamma = e^{-4}$', color='#ADD8E6')
         plt.plot(C, minDCF_rbfSVM[0, :], label=r'minDCF_rbfSVM, $\gamma = e^{-4}$', color='#00008B')
