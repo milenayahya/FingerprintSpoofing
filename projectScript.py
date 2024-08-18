@@ -1721,8 +1721,8 @@ if __name__ == '__main__':
         
         DCF_rbfSVM[i,:] = DCF_arr
         minDCF_rbfSVM[i,:] = minDCF_arr
-        i += 1
-         
+        i += 1  
+
     with open("evalResult.txt", "a") as f:
         plt.figure()
         f.write(f"Evaluating variants of the SVM model:\n")
@@ -1759,7 +1759,6 @@ if __name__ == '__main__':
         f.write("\n")
 
     plt.legend()
-    plt.show()
     plt.xscale('log', base=10)
     plt.xlabel('C (log scale)')
     plt.ylabel('minDCF')
