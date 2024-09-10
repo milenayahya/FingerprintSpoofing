@@ -874,7 +874,6 @@ if __name__ == '__main__':
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
     
-    '
     
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     
