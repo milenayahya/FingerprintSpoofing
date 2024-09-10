@@ -62,10 +62,10 @@ Correlation matrix of False class:
 MVG 4 features: Accuracy, Error: 0.9205, 0.07950000000000002
 TC 4 features: Accuracy, Error: 0.905, 0.09499999999999997
 NB 4 features: Accuracy, Error: 0.9235, 0.07650000000000001
-MVG features 1 and 2: Accuracy, Error: 0.8445, 0.15549999999999997
-TC features 1 and 2: Accuracy, Error: 0.829, 0.17100000000000004
-MVG features 3 and 4: Accuracy, Error: 0.912, 0.08799999999999997
-TC features 3 and 4: Accuracy, Error: 0.9055, 0.09450000000000003
+MVG features 1 and 2: Accuracy, Error: 0.635, 0.365
+TC features 1 and 2: Accuracy, Error: 0.5055, 0.49450000000000005
+MVG features 3 and 4: Accuracy, Error: 0.9055, 0.09450000000000003
+TC features 3 and 4: Accuracy, Error: 0.906, 0.09399999999999997
 MVG+PCA: Accuracy, Error: 0.9075, 0.09250000000000003
 TC+PCA: Accuracy, Error: 0.9065, 0.09350000000000003
 NB+PCA: Accuracy, Error: 0.9075, 0.09250000000000003

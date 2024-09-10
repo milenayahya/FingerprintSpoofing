@@ -557,7 +557,6 @@ def linear_SVM(DTR,DVAL,LTR,LVAL,k,C,prior):
         # #what_opt = numpy.dot(Dhat, alpha_opt * z)
         # what_opt = numpy.zeros(Dhat.shape[0])
 
-        # # Compute the optimized weight vector
         # for i in range(alpha_opt.shape[0]):
         #     what_opt += alpha_opt[i] * z[i] * Dhat[:, i]
 
@@ -849,10 +848,10 @@ if __name__ == '__main__':
     color_genuine = '#4E8098'
     color_fake = '#A31621'
 
-    # features_classT = features[:,labels.flatten()==1]
-    # features_classF = features[:,labels.flatten()==0]
+    features_classT = features[:,labels.flatten()==1]
+    features_classF = features[:,labels.flatten()==0]
 
-    #computeStats(features_classT,features_classF)
+    computeStats(features_classT,features_classF)
  
     # PCA, LDA, & Classification --Assignment 2
 
@@ -867,8 +866,9 @@ if __name__ == '__main__':
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
-    '''
     
+    
+    '''
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     
     # preprocessing with PCA then LDA classification
@@ -980,10 +980,10 @@ if __name__ == '__main__':
         f.write(f"MVG 4 features: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
         f.write(f"TC 4 features: Accuracy, Error: {accuracyTC}, {errorTC}\n")
         f.write(f"NB 4 features: Accuracy, Error: {accuracyNB}, {errorNB}\n")
-
+    
     ## Features 1 and 2
-    DTR_12_features = DTR[:3,:]
-    DVAL_12_features = DVAL[:3,:]
+    DTR_12_features = DTR[:2,:]
+    DVAL_12_features = DVAL[:2,:]
     
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_12_features,LTR,DVAL_12_features, 0.5)
     predicts_MVG,_ = llr(likelihoodF_MVG, likelihoodT_MVG,0)
@@ -999,8 +999,8 @@ if __name__ == '__main__':
         f.write(f"TC features 1 and 2: Accuracy, Error: {accuracyTC}, {errorTC}\n")
 
     ## Features 3 and 4
-    DTR_34_features = DTR[2:5,:]
-    DVAL_34_features = DVAL[2:5,:]
+    DTR_34_features = DTR[2:4,:]
+    DVAL_34_features = DVAL[2:4,:]
     
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_34_features,LTR,DVAL_34_features, 0.5)
     predicts_MVG,_ = llr(likelihoodF_MVG, likelihoodT_MVG,0)
@@ -1015,14 +1015,13 @@ if __name__ == '__main__':
         f.write(f"MVG features 3 and 4: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
         f.write(f"TC features 3 and 4: Accuracy, Error: {accuracyTC}, {errorTC}\n")
 
-  
+
     ## Applying PCA
-    m=1
+    m=1 #2,3,4,5,6
     DTR_PCA,P = PCA_projection(m, DTR)
     DVAL_PCA = numpy.dot(P.T,DVAL)
 
     ## MVG
-
     SPost, likelihoodF_MVG, likelihoodT_MVG = MVG(DTR_PCA,LTR,DVAL_PCA, 0.5)
     predicts_MVG,llr_scores_MVG_PCA = llr(likelihoodF_MVG, likelihoodT_MVG,0)
     accuracyMVG, errorMVG = evaluate_model(SPost, LVAL, predicts_MVG,True)
@@ -1038,7 +1037,7 @@ if __name__ == '__main__':
     accuracyNB, errorNB = evaluate_model(SPost, LVAL, predicts_NB,True)
 
 
-    with open('results.txt', 'a') as f:
+    with open('check.txt', 'a') as f:
         f.write(f"MVG+PCA: Accuracy, Error: {accuracyMVG}, {errorMVG}\n")
         f.write(f"TC+PCA: Accuracy, Error: {accuracyTC}, {errorTC}\n")
         f.write(f"NB+PCA: Accuracy, Error: {accuracyNB}, {errorNB}\n")
@@ -1114,6 +1113,7 @@ if __name__ == '__main__':
         f.write("\nminDCF Values with PCA:\n")
         for label, value in zip(labels_min_dcf, min_dcfs[1]):
             f.write(f"{label}: {value}\n")
+            
     # The best PCA setup for pi-tilde = 0.1 is no PCA
 
     # Bayes error plots:
@@ -1390,17 +1390,21 @@ if __name__ == '__main__':
     '''
 
     # K-FOLD calibration
-    # Set random seeds for reproducibility
+    # Set random seed for reproducibility
     random_seed = 42
     random.seed(random_seed)
     numpy.random.seed(random_seed)
     k = 10
     priors = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
-    '''
+    
     dcf_gmm = []
     dcf_svm = []
     dcf_lr =[]
+
+    mindcf_gmm = []
+    mindcf_svm = []
+    mindcf_lr =[]
 
     gmm_best_scores = numpy.load('gmm_best_scores.npy')
     svm_rbf_best_scores = numpy.load('svm_rbf_best_scores.npy')
@@ -1434,21 +1438,23 @@ if __name__ == '__main__':
         dcf_gmm.append(dcf_packed(vrow(calibrated_scores_gmm),labels_gmm,0.1,1,1))
         dcf_svm.append(dcf_packed(vrow(calibrated_scores_svm),labels_svm,0.1,1,1))
         dcf_lr.append(dcf_packed(vrow(calibrated_scores_lr),labels_lr,0.1,1,1))
+
+        # calculate also minDCF
     
     # save to plot
-    with open('result.txt', 'a') as f:
+    with open('calibration_results.txt', 'a') as f:
 
-    # Write DCF values for GMM
+    # write DCF values for GMM
         f.write("DCF values for GMM model:\n")
         for i, value in enumerate(dcf_gmm):
             f.write(f"Prior {priors[i]}: {value}\n")
         
-        # Write DCF values for SVM
+        # write DCF values for SVM
         f.write("DCF values for SVM model:\n")
         for i, value in enumerate(dcf_svm):
             f.write(f"Prior {priors[i]}: {value}\n")
         
-        # Write DCF values for LR
+        # write DCF values for LR
         f.write("DCF values for LR model:\n")
         for i, value in enumerate(dcf_lr):
             f.write(f"Prior {priors[i]}: {value}\n")
@@ -1457,6 +1463,9 @@ if __name__ == '__main__':
     prior_training_gmm = priors[dcf_gmm.index(min(dcf_gmm))]
     prior_training_svm = priors[dcf_svm.index(min(dcf_svm))]
     prior_training_lr = priors[dcf_lr.index(min(dcf_lr))]
+
+
+    ## NOW WE SHOULD RETRAIN A NEW MODEL USING ALL THE TRAINING DATA (NOT FOLDS) !!!!!!
 
     dcf_gmm = min(dcf_gmm)
     dcf_svm = min(dcf_svm)
@@ -1467,8 +1476,7 @@ if __name__ == '__main__':
     minDCF_lr = minDCF_packed(calibrated_scores_lr,labels_lr,0.1,1,1)
 
     # to check calibration
-    with open('result.txt', 'a') as f:
-        print('writing to file')
+    with open('calibration_results.txt', 'a') as f:#
         f.write(f"Best prior for training the GMM calibrated model: {prior_training_gmm}\n")
         f.write(f"Best prior for training the SVM calibrated model: {prior_training_svm}\n")
         f.write(f"Best prior for training the LR calibrated model: {prior_training_lr}\n")
@@ -1480,6 +1488,7 @@ if __name__ == '__main__':
     # Bayes Error Plot using best calibrated scores 
     
     # Best Models:
+    # THE BEST MODELS SHOULD BE TRAINED ON THE ENTIRE TRAINING DATA, NOT FOLDS !!!!
     calibrated_scores_gmm, labels_gmm = Kfold(gmm_best_scores,gmm_labels, prior_training_gmm,k)
     calibrated_scores_svm, labels_svm = Kfold(svm_rbf_best_scores,svm_labels,prior_training_svm,k)
     calibrated_scores_lr, labels_lr = Kfold(lr_quad_best_scores,lr_labels,prior_training_lr,k)
@@ -1490,7 +1499,7 @@ if __name__ == '__main__':
     dcf_LR, minDCF_LR = bayes_error_plot_general(priors, calibrated_scores_lr,labels_lr)
 
        
-    with open('result.txt', 'a') as f:
+    with open('calibration_results.txt', 'a') as f:
         f.write(f"DCF calibrated GMM over a range of application priors:\n {dcf_gmm}\n")
         f.write(f"minDCF calibrated GMM over a range of application priors:\n {minDCF_gmm}\n")
         f.write(f"DCF calibrated SVM over a range of application priors:\n {dcf_svm}\n")
@@ -1523,22 +1532,23 @@ if __name__ == '__main__':
         dcf.append(dcf_packed(fused_scores, fused_labels, 0.1,1,1))
     
     # best model:
+    # maybe should be trained without kfold?? 
     training_prior = priors[dcf.index(min(dcf))] 
     fused_scores, fused_labels = Kfold_fusion(gmm_best_scores, svm_rbf_best_scores, lr_quad_best_scores, LVAL, training_prior, k)
     best_dcf = min(dcf)
     min_dcf = minDCF_packed(fused_scores,fused_labels,0.1,1,1)
 
-    with open('result.txt', 'a') as f:
+    with open('calibration_results.txt', 'a') as f:
         f.write(f"Best prior for training the fused model: {training_prior}\n")
         f.write(f"DCF calibrated fused scores model : {best_dcf}\n")
         f.write(f"minDCF calibrated fused scores model: {min_dcf}\n")
     
     
-    '''
+    
     ####### EVALUATION #######
     evalFeatures, evalLabels = load('evalData.txt')
     evalLabels= evalLabels.flatten()
-    '''
+    
     ## the delivered system is GMM with diag cov and c=8, the scores being calibrated, the calibration transformation 
     ## trained on prior = 0.3. It is trained on the training dataset, but evaluated on our new eval dataset
 
@@ -1692,7 +1702,7 @@ if __name__ == '__main__':
     plt.show()
     plt.close()
 
-    '''
+    
     ## point 4
 
     # evaluating RBF SVM models with different hyperparameters on the evaluation dataset
@@ -1767,3 +1777,4 @@ if __name__ == '__main__':
     plt.savefig("RBF_SVM_tuning.png",format='png', dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()
+
