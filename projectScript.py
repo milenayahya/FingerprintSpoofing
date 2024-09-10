@@ -854,7 +854,7 @@ if __name__ == '__main__':
     color_genuine = '#4E8098'
     color_fake = '#A31621'
 
-    '''
+    
     features_classT = features[:,labels.flatten()==1]
     features_classF = features[:,labels.flatten()==0]
 
@@ -869,12 +869,12 @@ if __name__ == '__main__':
     LDAdata, W_LDA = LDA_projection(features,labels)
 
     ## LDA as a classifier
-    '''
+    
     ##the split to be used throughout ENTIRE project
     (DTR, LTR), (DVAL, LVAL) = split_db_2to1(features, labels)
 
     
-    '''
+    '
     
     error, accuracy, correct_samples = LDA_Classifier(DTR,LTR,DVAL,LVAL,False,None,True)
     
@@ -1199,7 +1199,7 @@ if __name__ == '__main__':
     plt.legend()
     plt.xscale('log', base=10)
     plt.show()
-    '''
+    
 
     ## Poly-SVM
     prior = 0.1
@@ -1296,7 +1296,7 @@ if __name__ == '__main__':
     plt.grid(True)
     plt.show()
     
-    '''
+    
     ## GMM
     alpha = 0.1
     threshold = 10**(-6)
@@ -1790,4 +1790,4 @@ if __name__ == '__main__':
     plt.show()
     plt.close()
     
-    '''
+    
